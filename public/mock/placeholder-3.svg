@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#f1f5f9"/>
+  <!-- Wheels -->
+  <circle cx="240" cy="360" r="100" fill="none" stroke="#334155" stroke-width="14"/>
+  <circle cx="560" cy="360" r="100" fill="none" stroke="#334155" stroke-width="14"/>
+  <circle cx="240" cy="360" r="16" fill="#64748b"/>
+  <circle cx="560" cy="360" r="16" fill="#64748b"/>
+  <!-- Frame -->
+  <polyline points="240,360 380,360 480,240 340,240 240,360" fill="none" stroke="#ef4444" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="380" y1="360" x2="340" y2="240" stroke="#ef4444" stroke-width="12" stroke-linecap="round"/>
+  <line x1="480" y1="240" x2="560" y2="360" stroke="#ef4444" stroke-width="12" stroke-linecap="round"/>
+  <!-- Handlebars & Seat -->
+  <line x1="480" y1="240" x2="500" y2="180" stroke="#0f172a" stroke-width="12" stroke-linecap="round"/>
+  <line x1="470" y1="180" x2="530" y2="180" stroke="#0f172a" stroke-width="14" stroke-linecap="round"/>
+  <line x1="340" y1="240" x2="330" y2="200" stroke="#0f172a" stroke-width="12" stroke-linecap="round"/>
+  <line x1="300" y1="200" x2="350" y2="200" stroke="#0f172a" stroke-width="16" stroke-linecap="round"/>
+  <text x="400" y="520" font-family="system-ui, sans-serif" font-size="28" font-weight="bold" fill="#334155" text-anchor="middle">Hero Sprint 26T MTB (Side)</text>
+</svg>

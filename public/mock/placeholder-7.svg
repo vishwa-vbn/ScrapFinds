@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#f1f5f9"/>
+  <!-- Base -->
+  <path d="M260 420 L300 280 L500 280 L540 420 Z" fill="#ffffff" stroke="#94a3b8" stroke-width="6"/>
+  <circle cx="400" cy="350" r="24" fill="#0284c7"/>
+  <!-- Jar -->
+  <path d="M340 280 L350 140 L450 140 L460 280 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="6"/>
+  <rect x="360" y="110" width="80" height="30" rx="6" fill="#0284c7"/>
+  <path d="M455 170 C485 170, 485 240, 458 250" fill="none" stroke="#0284c7" stroke-width="8"/>
+  <text x="400" y="520" font-family="system-ui, sans-serif" font-size="28" font-weight="bold" fill="#334155" text-anchor="middle">Bajaj 500W Mixer Grinder</text>
+</svg>

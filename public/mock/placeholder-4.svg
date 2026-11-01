@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#f8fafc"/>
+  <!-- Close up of gears and suspension -->
+  <circle cx="400" cy="280" r="140" fill="#cbd5e1" stroke="#475569" stroke-width="12"/>
+  <circle cx="400" cy="280" r="90" fill="#94a3b8" stroke="#334155" stroke-width="8"/>
+  <circle cx="400" cy="280" r="40" fill="#334155"/>
+  <rect x="250" y="260" width="300" height="40" fill="#ef4444" rx="8"/>
+  <text x="400" y="520" font-family="system-ui, sans-serif" font-size="28" font-weight="bold" fill="#334155" text-anchor="middle">Hero Sprint 26T MTB (Close-up)</text>
+</svg>

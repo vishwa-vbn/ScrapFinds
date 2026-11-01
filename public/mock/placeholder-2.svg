@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#f8fafc"/>
+  <rect x="280" y="80" width="240" height="420" rx="36" fill="#1e293b" stroke="#0f172a" stroke-width="6"/>
+  <rect x="296" y="110" width="208" height="360" rx="20" fill="#38bdf8"/>
+  <circle cx="400" cy="95" r="5" fill="#64748b"/>
+  <circle cx="400" cy="450" r="16" fill="#0284c7"/>
+  <text x="400" y="550" font-family="system-ui, sans-serif" font-size="28" font-weight="bold" fill="#334155" text-anchor="middle">Samsung Galaxy M31 (Phones)</text>
+</svg>

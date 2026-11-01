@@ -1,0 +1,32 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+dev-dist
+
+# Environment variables & sensitive credentials (NEVER commit)
+.env
+.env.*
+!.env.example
+
+# Vercel & Deployments
+.vercel
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Marketing generated QR assets
+marketing/qr
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode

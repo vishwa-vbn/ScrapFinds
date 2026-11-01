@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#f1f5f9"/>
+  <!-- Drill body -->
+  <path d="M260 200 L460 200 L460 280 L350 280 L320 420 L240 420 L270 280 L260 280 Z" fill="#15803d" stroke="#166534" stroke-width="8" stroke-linejoin="round"/>
+  <!-- Chuck and bit -->
+  <rect x="460" y="220" width="40" height="40" fill="#1e293b"/>
+  <line x1="500" y1="240" x2="580" y2="240" stroke="#94a3b8" stroke-width="10" stroke-linecap="round"/>
+  <!-- Trigger -->
+  <path d="M320 310 C340 310 340 340 320 340" fill="#dc2626" stroke="#b91c1c" stroke-width="4"/>
+  <text x="400" y="520" font-family="system-ui, sans-serif" font-size="28" font-weight="bold" fill="#334155" text-anchor="middle">Bosch 500W Electric Drill</text>
+</svg>

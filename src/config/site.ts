@@ -25,18 +25,6 @@ export const site = {
   /** WhatsApp number in E.164 format (digits only, no +) */
   whatsappE164: '919113966625',
 
-  /** Business address (shown in footer and contact card) */
-  address: '123 Recycle Lane, Scrap Nagar, Mumbai 400001',
-
-  /** Google Maps search query */
-  mapsQuery: 'ScrapFinds Mumbai',
-
-  /** Operating hours */
-  hours: 'Mon to Sat: 9 AM to 7 PM', // TODO(owner)
-
-  /** Service areas */
-  serviceAreas: ['Mumbai', 'Thane', 'Navi Mumbai'], // TODO(owner)
-
   /** Categories of scrap we buy from the public */
   weCollect: [
     'Old newspapers & books',

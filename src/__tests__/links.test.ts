@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { telHref, waHref, mapsHref } from '../lib/links';
+import { telHref, waHref } from '../lib/links';
 import { site } from '../config/site';
 
 describe('links', () => {
@@ -21,11 +21,5 @@ describe('links', () => {
   it('builds item waHref with title and url encoded', () => {
     const href = waHref('Vintage Radio', 'https://scrapfinds.com/item/123');
     expect(href).toContain(encodeURIComponent('Hi, I\'m interested in "Vintage Radio" https://scrapfinds.com/item/123'));
-  });
-
-  it('builds mapsHref with query encoded', () => {
-    expect(mapsHref()).toBe(
-      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(site.mapsQuery)}`
-    );
   });
 });

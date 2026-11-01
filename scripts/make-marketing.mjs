@@ -5,13 +5,11 @@ import path from 'node:path';
 const siteConfigRaw = await fs.readFile('src/config/site.ts', 'utf-8');
 const nameMatch = /name:\s*['"]([^'"]+)['"]/.exec(siteConfigRaw);
 const phoneMatch = /phoneDisplay:\s*['"]([^'"]+)['"]/.exec(siteConfigRaw);
-const addressMatch = /address:\s*['"]([^'"]+)['"]/.exec(siteConfigRaw);
-const hoursMatch = /hours:\s*['"]([^'"]+)['"]/.exec(siteConfigRaw);
+const altPhoneMatch = /altPhoneDisplay:\s*['"]([^'"]+)['"]/.exec(siteConfigRaw);
 
-const siteName = nameMatch ? nameMatch[1] : 'ScrapHub';
-const phone = phoneMatch ? phoneMatch[1] : '+91 98765 43210';
-const address = addressMatch ? addressMatch[1] : '123 Recycle Lane, Mumbai';
-const hours = hoursMatch ? hoursMatch[1] : 'Mon–Sat: 9 AM – 7 PM';
+const siteName = nameMatch ? nameMatch[1] : 'ScrapFinds';
+const phone = phoneMatch ? phoneMatch[1] : '+91 91139 66625';
+const altPhone = altPhoneMatch ? altPhoneMatch[1] : '+91 96329 43726';
 
 await fs.mkdir('marketing', { recursive: true });
 
@@ -148,12 +146,11 @@ const posterHtml = `<!DOCTYPE html>
   <div class="footer">
     <div class="contact-info">
       <div><strong>We also buy scrap!</strong> Papers, plastics, iron, copper, e-waste.</div>
-      <div>${address}</div>
-      <div>Hours: ${hours}</div>
+      <div>Direct pickup and collection by phone or WhatsApp.</div>
     </div>
     <div style="text-align: right;">
       <div style="font-size: 10pt; color: #6b7280;">Direct Phone & WhatsApp:</div>
-      <div class="phone-big">📞 ${phone}</div>
+      <div class="phone-big">📞 ${phone} / ${altPhone}</div>
     </div>
   </div>
 </body>
@@ -253,8 +250,8 @@ const cardHtml = `<!DOCTYPE html>
     </div>
 
     <div class="contact">
-      <div class="phone">📞 ${phone}</div>
-      <div style="font-size: 6pt; color: #6b7280;">${address}</div>
+      <div class="phone">📞 ${phone} / ${altPhone}</div>
+      <div style="font-size: 6pt; color: #6b7280;">Direct pickup & hand-to-hand collection</div>
     </div>
   </div>
 

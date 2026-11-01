@@ -58,7 +58,7 @@ scrap-hub/
 │  │  ├─ repo/ index.ts types.ts firestoreRepo.ts mockRepo.ts
 │  │  ├─ cache.ts  readBudget.ts  readMeter.ts
 │  │  ├─ imagekit.ts                # ikUrl(), uploadImage(), deleteImage()
-│  │  ├─ links.ts                   # telHref(), waHref(), mapsHref(), shareItem()
+│  │  ├─ links.ts                   # telHref(), waHref(), shareItem()
 │  │  └─ pwa/ installStore.ts  platform.ts  useInstall.ts
 │  ├─ components/ Header Footer ContactBar CallButton WhatsAppButton ItemCard ItemGrid
 │  │              CategoryChips SearchBox Gallery Badge Skeleton EmptyState ErrorState

@@ -14,10 +14,6 @@ export function waHref(title?: string, url?: string): string {
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
 }
 
-export function mapsHref(): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(site.mapsQuery)}`;
-}
-
 export async function shareItem(title: string, url: string): Promise<boolean> {
   const shareData = {
     title,

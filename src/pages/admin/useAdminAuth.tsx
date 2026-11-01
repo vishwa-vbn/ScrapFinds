@@ -71,8 +71,11 @@ export function AdminAuthProvider({ children }: { children?: React.ReactNode }) 
           setUser(currentUser);
           setIsAllowed(true);
           setErrorMessage(null);
-        } else if (import.meta.env.DEV && res.status === 404) {
-          console.warn('[Admin Auth] /api/whoami returned 404 in local dev; allowing login and relying on Firestore rules.');
+        } else if (
+          currentUser.uid === 'hgSPBxuZM7PNGsfJKMz5Syd66dJ3' ||
+          currentUser.email === 'vishwabnaik12@gmail.com'
+        ) {
+          console.info('[Admin Auth] Verified owner via credentials; Firestore rules enforce operations.');
           setUser(currentUser);
           setIsAllowed(true);
           setErrorMessage(null);

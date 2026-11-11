@@ -43,9 +43,12 @@ export async function translateItemWithGemini({
     if (res.ok) {
       const data = await res.json();
       return data as TranslationsResult;
+    } else {
+      const errData = await res.json().catch(() => ({}));
+      console.warn('Translate endpoint returned non-OK status, falling back to direct API:', res.status, errData);
     }
   } catch (err) {
-    console.warn('Serverless translate endpoint unavailable, attempting direct fallback...', err);
+    console.warn('Serverless translate endpoint error, falling back to direct API:', err);
   }
 
   // 2. Direct fallback (e.g. for Vite local dev without `vercel dev` server running)

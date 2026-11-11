@@ -80,7 +80,7 @@ Requirements:
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${clientKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${clientKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -108,3 +108,4 @@ Do not wrap in markdown or backticks. Return valid JSON only.`;
   const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
   return JSON.parse(cleanJson) as TranslationsResult;
 }
+

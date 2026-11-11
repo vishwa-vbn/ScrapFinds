@@ -118,6 +118,94 @@ function devApiPlugin(env: Record<string, string>): Plugin {
           return;
         }
 
+        if (pathname === '/api/translate') {
+          if (req.method !== 'POST') {
+            res.statusCode = 405;
+            return res.end(JSON.stringify({ error: 'Method not allowed' }));
+          }
+          const authCheck = await checkAdmin();
+          if (!authCheck.ok) {
+            res.statusCode = authCheck.status || 401;
+            return res.end(JSON.stringify({ error: authCheck.msg }));
+          }
+
+          const geminiKey = env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY;
+          if (!geminiKey) {
+            res.statusCode = 500;
+            return res.end(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }));
+          }
+
+          let body = '';
+          req.on('data', (chunk: Buffer) => {
+            body += chunk.toString();
+          });
+          req.on('end', async () => {
+            try {
+              const { title, description, category, condition } = JSON.parse(body || '{}');
+              const prompt = `You are a professional local second-hand and scrap item catalog copywriter in India.
+Translate and adapt the following item listing into natural, clear Kannada (kn) and Hindi (hi) suitable for local second-hand buyers.
+
+Item details:
+- Category: ${category || 'general'}
+- Condition: ${condition || 'good'}
+- Title: ${title || ''}
+- Description: ${description || ''}
+
+Requirements:
+1. Translate the title concisely into natural Kannada and Hindi (keep brand/model names in easily recognizable script or standard transliteration).
+2. Translate the description into clear, conversational, buyer-friendly language highlighting the working condition.
+3. Return ONLY a single raw valid JSON object with exact structure:
+{
+  "kn": {
+    "title": "...",
+    "description": "..."
+  },
+  "hi": {
+    "title": "...",
+    "description": "..."
+  }
+}
+Do not wrap in markdown or backticks. Return valid JSON only.`;
+
+              const gResp = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                      temperature: 0.2,
+                      responseMimeType: 'application/json',
+                    },
+                  }),
+                }
+              );
+
+              if (!gResp.ok) {
+                const errText = await gResp.text();
+                res.statusCode = gResp.status;
+                return res.end(JSON.stringify({ error: `Gemini API error: ${errText}` }));
+              }
+
+              const gData: any = await gResp.json();
+              const candidateText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (!candidateText) {
+                res.statusCode = 502;
+                return res.end(JSON.stringify({ error: 'No translation content returned' }));
+              }
+
+              const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
+              res.statusCode = 200;
+              return res.end(cleanJson);
+            } catch (err: unknown) {
+              res.statusCode = 500;
+              return res.end(JSON.stringify({ error: (err as Error).message }));
+            }
+          });
+          return;
+        }
+
         next();
       });
     },

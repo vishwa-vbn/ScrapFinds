@@ -18,12 +18,12 @@ export function ItemDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const { t, getCategoryLabel, getConditionLabel, getStatusLabel } = useLanguage();
+  const { t, getCategoryLabel, getConditionLabel, getStatusLabel, getItemTitle, getItemDescription } = useLanguage();
 
-  useDocumentMeta(
-    item ? item.title : undefined,
-    item ? item.description : undefined
-  );
+  const displayTitle = item ? getItemTitle(item) : undefined;
+  const displayDescription = item ? getItemDescription(item) : undefined;
+
+  useDocumentMeta(displayTitle, displayDescription);
 
   useEffect(() => {
     // Record view for InstallBanner
@@ -127,12 +127,12 @@ export function ItemDetail() {
       </Link>
 
       {/* Swipe Gallery */}
-      <Gallery images={item.images} title={item.title} />
+      <Gallery images={item.images} title={displayTitle || item.title} />
 
       {/* Title & Posted Date */}
       <div className="space-y-2 pt-2">
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[var(--fg)] tracking-tight leading-tight">
-          {item.title}
+          {displayTitle || item.title}
         </h1>
         <p className="text-xs text-[var(--muted)]">
           {t.postedOn} {formattedDate}
@@ -196,7 +196,7 @@ export function ItemDetail() {
           {t.descriptionLabel}
         </h3>
         <p className="text-sm sm:text-base text-[var(--fg)] leading-relaxed whitespace-pre-wrap">
-          {item.description || t.noDescription}
+          {displayDescription || t.noDescription}
         </p>
       </div>
 

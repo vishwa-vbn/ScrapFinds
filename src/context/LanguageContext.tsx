@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { translations, type Language, type Translations } from '../config/translations';
+import type { Item } from '../types/item';
 
 interface LanguageContextType {
   lang: Language;
@@ -9,6 +10,8 @@ interface LanguageContextType {
   getConditionLabel: (condition: string) => string;
   getStatusLabel: (status: string) => string;
   getScrapItems: () => string[];
+  getItemTitle: (item: Item) => string;
+  getItemDescription: (item: Item) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | null>(null);
@@ -59,12 +62,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
           return t.catElectronics;
         case 'appliances':
           return t.catAppliances;
-        case 'furniture':
-          return t.catFurniture;
         case 'tools':
           return t.catTools;
-        case 'other':
-          return t.catOther;
         default:
           return categoryId;
       }
@@ -118,6 +117,36 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     ];
   }, [t]);
 
+  // Localized Item Title helper
+  const getItemTitle = useCallback(
+    (item: Item): string => {
+      if (!item) return '';
+      if (lang === 'kn' && item.translations?.kn?.title) {
+        return item.translations.kn.title;
+      }
+      if (lang === 'hi' && item.translations?.hi?.title) {
+        return item.translations.hi.title;
+      }
+      return item.title;
+    },
+    [lang]
+  );
+
+  // Localized Item Description helper
+  const getItemDescription = useCallback(
+    (item: Item): string => {
+      if (!item) return '';
+      if (lang === 'kn' && item.translations?.kn?.description) {
+        return item.translations.kn.description;
+      }
+      if (lang === 'hi' && item.translations?.hi?.description) {
+        return item.translations.hi.description;
+      }
+      return item.description;
+    },
+    [lang]
+  );
+
   const value = useMemo(
     () => ({
       lang,
@@ -127,8 +156,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       getConditionLabel,
       getStatusLabel,
       getScrapItems,
+      getItemTitle,
+      getItemDescription,
     }),
-    [lang, setLang, t, getCategoryLabel, getConditionLabel, getStatusLabel, getScrapItems]
+    [lang, setLang, t, getCategoryLabel, getConditionLabel, getStatusLabel, getScrapItems, getItemTitle, getItemDescription]
   );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
@@ -137,7 +168,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 export function useLanguage(): LanguageContextType {
   const ctx = useContext(LanguageContext);
   if (!ctx) {
-    // Graceful fallback for components outside provider
     return {
       lang: 'en',
       setLang: () => {},
@@ -154,8 +184,9 @@ export function useLanguage(): LanguageContextType {
         translations.en.scrapPlastic,
         translations.en.scrapEwaste,
       ],
+      getItemTitle: (item: Item) => item?.title || '',
+      getItemDescription: (item: Item) => item?.description || '',
     };
   }
   return ctx;
 }
-

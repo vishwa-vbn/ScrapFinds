@@ -184,6 +184,9 @@ export const firestoreRepo: ItemsRepo = {
     if (typeof input.soldPrice === 'number' && input.soldPrice >= 0) {
       data.soldPrice = input.soldPrice;
     }
+    if (input.translations) {
+      data.translations = input.translations;
+    }
     const docRef = await addDoc(collection(db, 'items'), data);
     clearCache();
     return docRef.id;
@@ -201,6 +204,9 @@ export const firestoreRepo: ItemsRepo = {
     };
     if (typeof input.soldPrice === 'number' && input.soldPrice >= 0) {
       data.soldPrice = input.soldPrice;
+    }
+    if (input.translations) {
+      data.translations = input.translations;
     }
     await updateDoc(doc(db, 'items', id), data);
     clearCache();

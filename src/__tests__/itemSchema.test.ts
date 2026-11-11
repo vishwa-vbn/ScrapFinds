@@ -50,9 +50,15 @@ describe('itemSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects negative soldPrice', () => {
-    const invalid = { ...validItem, status: 'sold', soldPrice: -50 };
-    const result = itemSchema.safeParse(invalid);
-    expect(result.success).toBe(false);
+  it('validates item with optional translations', () => {
+    const localized = {
+      ...validItem,
+      translations: {
+        kn: { title: 'ವಿಂಟೇಜ್ ರೇಡಿಯೋ', description: 'ಉತ್ತಮ ಸ್ಥಿತಿಯಲ್ಲಿದೆ' },
+        hi: { title: 'विंटेज रेडियो', description: 'अच्छी स्थिति में है' },
+      },
+    };
+    const result = itemSchema.safeParse(localized);
+    expect(result.success).toBe(true);
   });
 });

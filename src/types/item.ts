@@ -8,6 +8,11 @@ export const imageSchema = z.object({
   fileId: z.string().min(1),
 });
 
+export const itemTranslationSchema = z.object({
+  title: z.string().min(1).max(120),
+  description: z.string().max(1200),
+});
+
 export const itemSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(2).max(80),
@@ -22,12 +27,20 @@ export const itemSchema = z.object({
   updatedAt: z.number().int().positive(),
   /** Manual selling price in INR for sold items */
   soldPrice: z.number().min(0).optional(),
+  /** Multilingual localized titles and descriptions */
+  translations: z
+    .object({
+      kn: itemTranslationSchema.optional(),
+      hi: itemTranslationSchema.optional(),
+    })
+    .optional(),
 });
 
 export const itemInputSchema = itemSchema.omit({ id: true, createdAt: true, updatedAt: true });
 
 export type Item = z.infer<typeof itemSchema>;
 export type ItemInput = z.infer<typeof itemInputSchema>;
+export type ItemTranslation = z.infer<typeof itemTranslationSchema>;
 export type ItemImage = z.infer<typeof imageSchema>;
 export type Condition = z.infer<typeof conditionSchema>;
 export type Status = z.infer<typeof statusSchema>;

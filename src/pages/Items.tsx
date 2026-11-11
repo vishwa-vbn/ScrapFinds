@@ -14,7 +14,7 @@ import { PullToRefresh } from '../components/PullToRefresh';
 import { useLanguage } from '../context/LanguageContext';
 
 export function Items() {
-  const { t } = useLanguage();
+  const { t, getItemTitle, getItemDescription } = useLanguage();
   useDocumentMeta(t.itemsTitle, 'Browse recovered, tested items ready for local pickup.');
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -72,16 +72,23 @@ export function Items() {
     }
   };
 
-  // Client-side search filtering over currently loaded items
+  // Client-side search filtering over currently loaded items (supporting translated text)
   const filteredItems = useMemo(() => {
     if (!searchQuery.trim()) return items;
     const q = searchQuery.toLowerCase();
-    return items.filter(
-      item =>
-        item.title.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q)
-    );
-  }, [items, searchQuery]);
+    return items.filter(item => {
+      const activeTitle = getItemTitle(item).toLowerCase();
+      const activeDesc = getItemDescription(item).toLowerCase();
+      const rawTitle = item.title.toLowerCase();
+      const rawDesc = item.description.toLowerCase();
+      return (
+        activeTitle.includes(q) ||
+        activeDesc.includes(q) ||
+        rawTitle.includes(q) ||
+        rawDesc.includes(q)
+      );
+    });
+  }, [items, searchQuery, getItemTitle, getItemDescription]);
 
   return (
     <PullToRefresh onRefresh={() => loadData(categoryParam)} isRefreshing={loading}>

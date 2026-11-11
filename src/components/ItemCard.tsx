@@ -15,7 +15,8 @@ export function ItemCard({ item }: ItemCardProps) {
     item.images.length > 0 ? ikUrl(item.images[0].url, { w: 480, q: 70 }) : '/mock/placeholder-1.svg'
   );
 
-  const { t, getCategoryLabel, getConditionLabel } = useLanguage();
+  const { t, getCategoryLabel, getConditionLabel, getItemTitle } = useLanguage();
+  const displayTitle = getItemTitle(item);
 
   return (
     <Link
@@ -26,7 +27,7 @@ export function ItemCard({ item }: ItemCardProps) {
       <div className="relative aspect-[4/3] w-full bg-slate-100 dark:bg-slate-800/80 overflow-hidden">
         <img
           src={imgSrc}
-          alt={item.title}
+          alt={displayTitle}
           loading="lazy"
           decoding="async"
           width="480"
@@ -55,7 +56,7 @@ export function ItemCard({ item }: ItemCardProps) {
       <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between gap-3.5">
         <div>
           <h3 className="font-bold text-[var(--fg)] text-base line-clamp-2 leading-snug group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
-            {item.title}
+            {displayTitle}
           </h3>
         </div>
 

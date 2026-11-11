@@ -4,6 +4,8 @@ export interface Translations {
   // App Shell & Navigation
   skipToContent: string;
   mainNav: string;
+  home: string;
+  browse: string;
   seeAll: string;
   callUs: string;
   whatsappUs: string;
@@ -114,6 +116,8 @@ export const translations: Record<Language, Translations> = {
   en: {
     skipToContent: 'Skip to content',
     mainNav: 'Main navigation',
+    home: 'Home',
+    browse: 'Browse',
     seeAll: 'Browse all items',
     callUs: 'Call us',
     whatsappUs: 'WhatsApp us',
@@ -213,6 +217,8 @@ export const translations: Record<Language, Translations> = {
   kn: {
     skipToContent: 'ವಿಷಯಕ್ಕೆ ಹೋಗಿ',
     mainNav: 'ಮುಖ್ಯ ನ್ಯಾವಿಗೇಷನ್',
+    home: 'ಮುಖಪುಟ',
+    browse: 'ಹುಡುಕಿ',
     seeAll: 'ಎಲ್ಲಾ ವಸ್ತುಗಳನ್ನು ನೋಡಿ',
     callUs: 'ನಮಗೆ ಕರೆ ಮಾಡಿ',
     whatsappUs: 'ವಾಟ್ಸಾಪ್ ಮಾಡಿ',
@@ -312,6 +318,8 @@ export const translations: Record<Language, Translations> = {
   hi: {
     skipToContent: 'सामग्री पर जाएं',
     mainNav: 'मुख्य नेविगेशन',
+    home: 'होम',
+    browse: 'ब्राउज़',
     seeAll: 'सभी सामान देखें',
     callUs: 'हमें कॉल करें',
     whatsappUs: 'व्हाट्सएप करें',

@@ -3,19 +3,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isAdmin() {
-      return request.auth != null && request.auth.uid == 'hgSPBxuZM7PNGsfJKMz5Syd66dJ3';
-    }
-
-    function validItem(d) {
-      return d.keys().hasOnly(['title','description','category','condition','status','images','createdAt','updatedAt','soldPrice'])
-        && d.title is string && d.title.size() >= 2 && d.title.size() <= 80
-        && d.description is string && d.description.size() <= 1000
-        && d.category is string && d.category.size() > 0 && d.category.size() <= 30
-        && d.condition in ['like_new','good','fair','needs_repair']
-        && d.status in ['available','reserved','sold']
-        && d.images is list && d.images.size() >= 1 && d.images.size() <= 4
-        && d.createdAt is timestamp && d.updatedAt is timestamp
-        && (!('soldPrice' in d) || (d.soldPrice is number && d.soldPrice >= 0));
+      return request.auth != null && (
+        request.auth.uid == 'hgSPBxuZM7PNGsfJKMz5Syd66dJ3' ||
+        request.auth.token.email == 'vishwabnaik12@gmail.com'
+      );
     }
 
     match /items/{itemId} {
@@ -23,7 +14,7 @@ service cloud.firestore {
       // Public lists must be bounded and must only target visible statuses. Admin lists must be bounded too.
       allow list: if (request.query.limit <= 13 && resource.data.status in ['available','reserved'])
                   || (isAdmin() && request.query.limit <= 100);
-      allow create: if isAdmin() && validItem(request.resource.data);
+      allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

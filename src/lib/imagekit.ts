@@ -4,8 +4,11 @@ const ENDPOINT = (import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT as string) || '';
 const PUBLIC_KEY = (import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY as string) || '';
 
 export function ikUrl(url: string, o: { w: number; q?: number }): string {
-  if (!url || !ENDPOINT || !url.startsWith(ENDPOINT)) return url;
-  return `${url}?tr=w-${o.w},q-${o.q ?? 70},f-auto`;
+  if (!url) return '';
+  const cleanUrl = url.split('?')[0].trim();
+  const endpoint = (ENDPOINT || '').replace(/\/+$/, '');
+  if (!endpoint || !cleanUrl.startsWith(endpoint)) return cleanUrl;
+  return `${cleanUrl}?tr=w-${o.w},q-${o.q ?? 70},f-auto`;
 }
 
 export async function uploadImage(file: File, idToken: string): Promise<{ url: string; fileId: string }> {

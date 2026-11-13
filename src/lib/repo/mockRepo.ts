@@ -138,7 +138,7 @@ const initialItems: Item[] = [
 let itemsStore: Item[] = [...initialItems];
 
 export const mockRepo: ItemsRepo = {
-  async list({ category, cursor }): Promise<ListResult> {
+  async list({ category, cursor }: { category?: string; cursor?: number; forceRefresh?: boolean } = {}): Promise<ListResult> {
     // Filter visible statuses: available and reserved
     let filtered = itemsStore.filter(i => i.status === 'available' || i.status === 'reserved');
     if (category) {
@@ -163,7 +163,7 @@ export const mockRepo: ItemsRepo = {
     };
   },
 
-  async get(id: string): Promise<Item | null> {
+  async get(id: string, _opts?: { forceRefresh?: boolean }): Promise<Item | null> {
     const item = itemsStore.find(i => i.id === id);
     return item ? { ...item } : null;
   },

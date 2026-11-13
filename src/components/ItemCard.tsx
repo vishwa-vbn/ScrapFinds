@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import type { Item } from '../types/item';
 import { ikUrl } from '../lib/imagekit';
@@ -11,12 +11,19 @@ interface ItemCardProps {
 }
 
 export function ItemCard({ item }: ItemCardProps) {
-  const [imgSrc, setImgSrc] = useState(() =>
-    item.images.length > 0 ? ikUrl(item.images[0].url, { w: 480, q: 70 }) : '/mock/placeholder-1.svg'
-  );
-
   const { t, getCategoryLabel, getConditionLabel, getItemTitle } = useLanguage();
   const displayTitle = getItemTitle(item);
+
+  const rawUrl = item.images && item.images.length > 0 ? item.images[0].url : '';
+  const targetUrl = rawUrl ? ikUrl(rawUrl, { w: 480, q: 70 }) : '';
+  const [hasError, setHasError] = useState(false);
+
+  // If item images change, reset any error state
+  useEffect(() => {
+    setHasError(false);
+  }, [rawUrl]);
+
+  const displaySrc = !hasError && targetUrl ? targetUrl : '/mock/placeholder-1.svg';
 
   return (
     <Link
@@ -26,13 +33,18 @@ export function ItemCard({ item }: ItemCardProps) {
       {/* 4:3 Aspect Ratio Image Container */}
       <div className="relative aspect-[4/3] w-full bg-slate-100 dark:bg-slate-800/80 overflow-hidden">
         <img
-          src={imgSrc}
+          key={rawUrl || item.id}
+          src={displaySrc}
           alt={displayTitle}
           loading="lazy"
           decoding="async"
           width="480"
           height="360"
-          onError={() => setImgSrc('/mock/placeholder-1.svg')}
+          onError={() => {
+            if (targetUrl) {
+              setHasError(true);
+            }
+          }}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
 

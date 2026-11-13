@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdminAuth } from './useAdminAuth';
 import { getRepo } from '../../lib/repo';
-import { deleteImage } from '../../lib/imagekit';
+import { deleteImage, ikUrl } from '../../lib/imagekit';
 import type { Item, Status, Condition } from '../../types/item';
 import { categories, categoryMap } from '../../config/categories';
 import { strings } from '../../config/strings';
@@ -552,9 +552,19 @@ export function Dashboard() {
                             <div className="flex items-center gap-3">
                               <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-slate-800 shrink-0 overflow-hidden border border-[var(--border)]">
                                 <img
-                                  src={item.images[0]?.url || '/mock/placeholder-1.svg'}
+                                  src={
+                                    item.images[0]?.url
+                                      ? ikUrl(item.images[0].url, { w: 120, q: 60 })
+                                      : '/mock/placeholder-1.svg'
+                                  }
                                   alt=""
                                   className="w-full h-full object-cover"
+                                  onError={e => {
+                                    const el = e.currentTarget as HTMLImageElement;
+                                    if (!el.src.includes('/mock/placeholder-1.svg')) {
+                                      el.src = '/mock/placeholder-1.svg';
+                                    }
+                                  }}
                                 />
                               </div>
                               <div className="min-w-0 max-w-[220px] sm:max-w-xs">

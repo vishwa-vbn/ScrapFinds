@@ -62,7 +62,10 @@ export function Gallery({ images, title }: GalleryProps) {
                 width="960"
                 height="720"
                 onError={e => {
-                  (e.currentTarget as HTMLImageElement).src = '/mock/placeholder-1.svg';
+                  const el = e.currentTarget as HTMLImageElement;
+                  if (!el.src.includes('/mock/placeholder-1.svg')) {
+                    el.src = '/mock/placeholder-1.svg';
+                  }
                 }}
                 className="w-full h-full object-contain"
               />
@@ -102,7 +105,10 @@ export function Gallery({ images, title }: GalleryProps) {
                   height="64"
                   className="w-full h-full object-cover"
                   onError={e => {
-                    (e.currentTarget as HTMLImageElement).src = '/mock/placeholder-1.svg';
+                    const el = e.currentTarget as HTMLImageElement;
+                    if (!el.src.includes('/mock/placeholder-1.svg')) {
+                      el.src = '/mock/placeholder-1.svg';
+                    }
                   }}
                 />
               </button>

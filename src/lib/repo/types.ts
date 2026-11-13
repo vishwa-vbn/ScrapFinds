@@ -7,8 +7,8 @@ export interface ListResult {
 }
 
 export interface ItemsRepo {
-  list(opts: { category?: string; cursor?: number }): Promise<ListResult>;
-  get(id: string): Promise<Item | null>;
+  list(opts?: { category?: string; cursor?: number; forceRefresh?: boolean }): Promise<ListResult>;
+  get(id: string, opts?: { forceRefresh?: boolean }): Promise<Item | null>;
   // admin only
   listAll(): Promise<Item[]>;
   create(input: ItemInput): Promise<string>;

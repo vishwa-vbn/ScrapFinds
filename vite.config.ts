@@ -260,8 +260,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
         includeAssets: ['favicon.svg', 'icons/*.png', 'robots.txt'],
         manifest: {
@@ -294,11 +293,11 @@ export default defineConfig(({ mode }) => {
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/ik\.imagekit\.io\//,
-              handler: 'CacheFirst',
+              handler: 'StaleWhileRevalidate',
               options: {
-                cacheName: 'ik-images',
-                expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 },
-                cacheableResponse: { statuses: [0, 200] },
+                cacheName: 'ik-images-v2',
+                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
+                cacheableResponse: { statuses: [200] },
               },
             },
           ],

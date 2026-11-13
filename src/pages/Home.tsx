@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { site } from '../config/site';
 import { getRepo } from '../lib/repo';
@@ -12,6 +12,7 @@ import { ContactBar } from '../components/ContactBar';
 import { useDocumentMeta } from '../lib/useDocumentMeta';
 import { RecycleIcon, ArrowRightIcon, CheckIcon, PackageIcon, PhoneCallIcon } from '../components/Icons';
 import { useLanguage } from '../context/LanguageContext';
+import { PullToRefresh } from '../components/PullToRefresh';
 
 export function Home() {
   const { t, getScrapItems } = useLanguage();
@@ -20,31 +21,28 @@ export function Home() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-    async function loadFeatured() {
-      try {
-        const repo = await getRepo();
-        const res = await repo.list({});
-        if (active) {
-          setItems(res.items.slice(0, 6));
-        }
-      } catch (err) {
-        console.error('Failed to load items for home:', err);
-      } finally {
-        if (active) setLoading(false);
-      }
+  const loadFeatured = useCallback(async (forceRefresh = false) => {
+    try {
+      if (forceRefresh) setLoading(true);
+      const repo = await getRepo();
+      const res = await repo.list({ forceRefresh });
+      setItems(res.items.slice(0, 6));
+    } catch (err) {
+      console.error('Failed to load items for home:', err);
+    } finally {
+      setLoading(false);
     }
-    loadFeatured();
-    return () => {
-      active = false;
-    };
   }, []);
+
+  useEffect(() => {
+    loadFeatured(false);
+  }, [loadFeatured]);
 
   const scrapList = getScrapItems();
 
   return (
-    <div className="space-y-16 sm:space-y-20 pb-16">
+    <PullToRefresh onRefresh={() => loadFeatured(true)} isRefreshing={loading}>
+      <div className="space-y-16 sm:space-y-20 pb-16">
       {/* Hero Section */}
       <section className="text-center pt-6 sm:pt-10 pb-4 max-w-3xl mx-auto space-y-6">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-300 border border-green-200/80 dark:border-green-800 text-xs font-semibold shadow-2xs">
@@ -206,5 +204,6 @@ export function Home() {
         <ContactBar />
       </section>
     </div>
+    </PullToRefresh>
   );
 }

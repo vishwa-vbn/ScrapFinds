@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getRepo } from '../lib/repo';
 import type { Item } from '../types/item';
@@ -11,6 +11,7 @@ import { shareItem } from '../lib/links';
 import { useDocumentMeta } from '../lib/useDocumentMeta';
 import { ArrowLeftIcon, CategoryIcon, ClipboardIcon, InfoIcon, ShareIcon, SparklesIcon } from '../components/Icons';
 import { useLanguage } from '../context/LanguageContext';
+import { PullToRefresh } from '../components/PullToRefresh';
 
 export function ItemDetail() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +26,28 @@ export function ItemDetail() {
 
   useDocumentMeta(displayTitle, displayDescription);
 
+  const loadItem = useCallback(
+    async (forceRefresh = false) => {
+      if (!id) return;
+      try {
+        setLoading(true);
+        setError(null);
+        const repo = await getRepo();
+        const found = await repo.get(id, { forceRefresh });
+        if (!found) {
+          setError(t.notFoundDesc);
+        } else {
+          setItem(found);
+        }
+      } catch (err) {
+        setError((err as Error).message || t.errorDesc);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [id, t.notFoundDesc, t.errorDesc]
+  );
+
   useEffect(() => {
     // Record view for InstallBanner
     try {
@@ -33,36 +56,8 @@ export function ItemDetail() {
       /* ignore */
     }
 
-    if (!id) return;
-    let active = true;
-
-    async function loadItem() {
-      try {
-        setLoading(true);
-        setError(null);
-        const repo = await getRepo();
-        const found = await repo.get(id!);
-        if (active) {
-          if (!found) {
-            setError(t.notFoundDesc);
-          } else {
-            setItem(found);
-          }
-        }
-      } catch (err) {
-        if (active) {
-          setError((err as Error).message || t.errorDesc);
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    loadItem();
-    return () => {
-      active = false;
-    };
-  }, [id, t.notFoundDesc, t.errorDesc]);
+    loadItem(false);
+  }, [loadItem]);
 
   const handleShare = async () => {
     if (!item) return;
@@ -116,7 +111,8 @@ export function ItemDetail() {
   });
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pt-1 pb-40">
+    <PullToRefresh onRefresh={() => loadItem(true)} isRefreshing={loading}>
+      <div className="max-w-2xl mx-auto space-y-6 pt-1 pb-40">
       {/* Back button */}
       <Link
         to="/items"
@@ -236,5 +232,6 @@ export function ItemDetail() {
         </div>
       </div>
     </div>
+    </PullToRefresh>
   );
 }

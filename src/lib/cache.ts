@@ -1,8 +1,20 @@
 type Entry<T> = { v: T; t: number };
 const mem = new Map<string, Entry<unknown>>();
-const P = 'sh:v1:';
+const P = 'sh:v2:';
 
-export const TTL = { list: 10 * 60_000, item: 30 * 60_000 };
+// Auto-purge any stale legacy sh:v1: items from previous versions
+try {
+  if (typeof localStorage !== 'undefined') {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('sh:v1:'))
+      .forEach(k => localStorage.removeItem(k));
+  }
+} catch {
+  /* storage unavailable */
+}
+
+// 2 minutes for item lists, 5 minutes for individual item details
+export const TTL = { list: 2 * 60_000, item: 5 * 60_000 };
 
 export function getCached<T>(key: string, ttl: number): T | null {
   const now = Date.now();
@@ -45,12 +57,31 @@ export function setCached<T>(key: string, v: T) {
   }
 }
 
+export function invalidateListCache() {
+  for (const k of Array.from(mem.keys())) {
+    if (k.startsWith('items:list:')) {
+      mem.delete(k);
+    }
+  }
+  try {
+    if (typeof localStorage !== 'undefined') {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith(P + 'items:list:'))
+        .forEach(k => localStorage.removeItem(k));
+    }
+  } catch {
+    /* */
+  }
+}
+
 export function clearCache() {
   mem.clear();
   try {
-    Object.keys(localStorage)
-      .filter(k => k.startsWith(P))
-      .forEach(k => localStorage.removeItem(k));
+    if (typeof localStorage !== 'undefined') {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith(P) || k.startsWith('sh:v1:'))
+        .forEach(k => localStorage.removeItem(k));
+    }
   } catch {
     /* */
   }

@@ -28,14 +28,14 @@ export function Items() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const loadData = useCallback(
-    async (cat?: string, cursor?: number, append = false) => {
+    async (cat?: string, cursor?: number, append = false, forceRefresh = false) => {
       try {
         if (!append) setLoading(true);
         else setLoadingMore(true);
         setError(null);
 
         const repo = await getRepo();
-        const res = await repo.list({ category: cat, cursor });
+        const res = await repo.list({ category: cat, cursor, forceRefresh });
 
         setNextCursor(res.nextCursor);
         if (append) {
@@ -68,7 +68,7 @@ export function Items() {
 
   const handleLoadMore = () => {
     if (nextCursor && !loadingMore) {
-      loadData(categoryParam, nextCursor, true);
+      loadData(categoryParam, nextCursor, true, false);
     }
   };
 
@@ -91,7 +91,7 @@ export function Items() {
   }, [items, searchQuery, getItemTitle, getItemDescription]);
 
   return (
-    <PullToRefresh onRefresh={() => loadData(categoryParam)} isRefreshing={loading}>
+    <PullToRefresh onRefresh={() => loadData(categoryParam, undefined, false, true)} isRefreshing={loading}>
       <div className="space-y-6 sm:space-y-8 pb-16">
         {/* Title */}
         <div className="pt-1 border-b border-gray-100 dark:border-slate-800 pb-4">

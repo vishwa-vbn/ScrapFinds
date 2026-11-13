@@ -49,16 +49,18 @@ function parseFirestoreDoc(id: string, data: DocumentData): Item {
 }
 
 export const firestoreRepo: ItemsRepo = {
-  async list({ category, cursor }): Promise<ListResult> {
+  async list({ category, cursor, forceRefresh }: { category?: string; cursor?: number; forceRefresh?: boolean } = {}): Promise<ListResult> {
     const cursorKey = cursor ? String(cursor) : 'first';
     const cacheKey = category
       ? `items:list:${category}:${cursorKey}`
       : `items:list:all:${cursorKey}`;
 
-    // 1. Try cache
-    const cached = getCached<ListResult>(cacheKey, TTL.list);
-    if (cached) {
-      return { ...cached, fromCache: true };
+    // 1. Try cache if not forcing refresh
+    if (!forceRefresh) {
+      const cached = getCached<ListResult>(cacheKey, TTL.list);
+      if (cached) {
+        return { ...cached, fromCache: true };
+      }
     }
 
     // 2. Check read budget
@@ -134,10 +136,12 @@ export const firestoreRepo: ItemsRepo = {
     }
   },
 
-  async get(id: string): Promise<Item | null> {
+  async get(id: string, opts?: { forceRefresh?: boolean }): Promise<Item | null> {
     const cacheKey = `items:detail:${id}`;
-    const cached = getCached<Item>(cacheKey, TTL.item);
-    if (cached) return cached;
+    if (!opts?.forceRefresh) {
+      const cached = getCached<Item>(cacheKey, TTL.item);
+      if (cached) return cached;
+    }
 
     if (!canRead(1)) {
       const stale = getStale<Item>(cacheKey);

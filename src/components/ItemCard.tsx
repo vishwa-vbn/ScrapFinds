@@ -23,8 +23,6 @@ export function ItemCard({ item }: ItemCardProps) {
     setHasError(false);
   }, [rawUrl]);
 
-  const displaySrc = !hasError && targetUrl ? targetUrl : '/mock/placeholder-1.svg';
-
   return (
     <Link
       to={`/item/${item.id}`}
@@ -32,21 +30,24 @@ export function ItemCard({ item }: ItemCardProps) {
     >
       {/* 4:3 Aspect Ratio Image Container */}
       <div className="relative aspect-[4/3] w-full bg-slate-100 dark:bg-slate-800/80 overflow-hidden">
-        <img
-          key={rawUrl || item.id}
-          src={displaySrc}
-          alt={displayTitle}
-          loading="lazy"
-          decoding="async"
-          width="480"
-          height="360"
-          onError={() => {
-            if (targetUrl) {
-              setHasError(true);
-            }
-          }}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-        />
+        {targetUrl && !hasError ? (
+          <img
+            key={rawUrl || item.id}
+            src={targetUrl}
+            alt={displayTitle}
+            loading="lazy"
+            decoding="async"
+            width="480"
+            height="360"
+            onError={() => setHasError(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 select-none">
+            <CameraIcon className="w-9 h-9 opacity-40 mb-1 stroke-[1.5]" />
+            <span className="text-[11px] font-semibold tracking-wide uppercase opacity-60">No Photo</span>
+          </div>
+        )}
 
         {/* Status Overlay if Reserved */}
         {item.status === 'reserved' && (

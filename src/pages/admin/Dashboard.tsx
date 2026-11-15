@@ -19,6 +19,7 @@ import {
   ArrowRightIcon,
   CloseIcon,
   CheckIcon,
+  CameraIcon,
 } from '../../components/Icons';
 
 type Tab = 'table' | 'analytics';
@@ -550,22 +551,19 @@ export function Dashboard() {
                           {/* Item Thumbnail & Title */}
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-slate-800 shrink-0 overflow-hidden border border-[var(--border)]">
-                                <img
-                                  src={
-                                    item.images[0]?.url
-                                      ? ikUrl(item.images[0].url, { w: 120, q: 60 })
-                                      : '/mock/placeholder-1.svg'
-                                  }
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                  onError={e => {
-                                    const el = e.currentTarget as HTMLImageElement;
-                                    if (!el.src.includes('/mock/placeholder-1.svg')) {
-                                      el.src = '/mock/placeholder-1.svg';
-                                    }
-                                  }}
-                                />
+                              <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-slate-800 shrink-0 overflow-hidden border border-[var(--border)] flex items-center justify-center text-slate-400">
+                                {item.images && item.images.length > 0 && item.images[0].url ? (
+                                  <img
+                                    src={ikUrl(item.images[0].url, { w: 120, q: 60 })}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                    onError={e => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <CameraIcon className="w-5 h-5 opacity-40" />
+                                )}
                               </div>
                               <div className="min-w-0 max-w-[220px] sm:max-w-xs">
                                 <Link

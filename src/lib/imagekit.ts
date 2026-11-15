@@ -12,11 +12,11 @@ export function ikUrl(url: string, o: { w: number; q?: number }): string {
 }
 
 export async function uploadImage(file: File, idToken: string): Promise<{ url: string; fileId: string }> {
-  // If in mock dev mode, return a mock placeholder
+  // If in mock dev mode, create an object URL from the local file
   if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true') {
     const mockId = 'mock-' + Math.random().toString(36).substring(2, 9);
     return {
-      url: `/mock/placeholder-1.svg`,
+      url: URL.createObjectURL(file),
       fileId: mockId,
     };
   }

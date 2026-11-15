@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { ikUrl } from '../lib/imagekit';
 
 describe('imagekit ikUrl', () => {
-  it('does not transform mock or local SVG URLs', () => {
-    const mockUrl = '/mock/placeholder-1.svg';
-    expect(ikUrl(mockUrl, { w: 480, q: 70 })).toBe('/mock/placeholder-1.svg');
+  it('does not transform local or non-ImageKit URLs', () => {
+    const localUrl = '/icons/pwa-192.png';
+    expect(ikUrl(localUrl, { w: 480, q: 70 })).toBe('/icons/pwa-192.png');
   });
 
   it('transforms valid ImageKit endpoint URLs', () => {

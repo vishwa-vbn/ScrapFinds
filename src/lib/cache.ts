@@ -1,12 +1,12 @@
 type Entry<T> = { v: T; t: number };
 const mem = new Map<string, Entry<unknown>>();
-const P = 'sh:v2:';
+const P = 'sh:v3:';
 
-// Auto-purge any stale legacy sh:v1: items from previous versions
+// Auto-purge any stale legacy sh:v1: or sh:v2: items from previous versions
 try {
   if (typeof localStorage !== 'undefined') {
     Object.keys(localStorage)
-      .filter(k => k.startsWith('sh:v1:'))
+      .filter(k => k.startsWith('sh:v1:') || k.startsWith('sh:v2:'))
       .forEach(k => localStorage.removeItem(k));
   }
 } catch {
@@ -79,7 +79,7 @@ export function clearCache() {
   try {
     if (typeof localStorage !== 'undefined') {
       Object.keys(localStorage)
-        .filter(k => k.startsWith(P) || k.startsWith('sh:v1:'))
+        .filter(k => k.startsWith(P) || k.startsWith('sh:v1:') || k.startsWith('sh:v2:'))
         .forEach(k => localStorage.removeItem(k));
     }
   } catch {

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import type { ItemImage } from '../types/item';
 import { ikUrl } from '../lib/imagekit';
+import { CameraIcon } from './Icons';
 
 interface GalleryProps {
   images: ItemImage[];
@@ -9,6 +10,7 @@ interface GalleryProps {
 
 export function Gallery({ images, title }: GalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [failedIndices, setFailedIndices] = useState<Set<number>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = () => {
@@ -31,8 +33,9 @@ export function Gallery({ images, title }: GalleryProps) {
 
   if (!images || images.length === 0) {
     return (
-      <div className="w-full aspect-[4/3] bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center text-gray-400">
-        No image available
+      <div className="w-full aspect-[4/3] bg-slate-100 dark:bg-slate-800/80 rounded-2xl flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 border border-[var(--border)] select-none">
+        <CameraIcon className="w-12 h-12 opacity-30 mb-2 stroke-[1.5]" />
+        <span className="text-xs font-semibold uppercase tracking-wider opacity-60">No photos available</span>
       </div>
     );
   }
@@ -54,21 +57,25 @@ export function Gallery({ images, title }: GalleryProps) {
               key={img.fileId || idx}
               className="w-full h-full shrink-0 snap-center flex items-center justify-center bg-black/5"
             >
-              <img
-                src={ikUrl(img.url, { w: 960, q: 75 })}
-                alt={`${title} - photo ${idx + 1}`}
-                loading={idx === 0 ? 'eager' : 'lazy'}
-                decoding="async"
-                width="960"
-                height="720"
-                onError={e => {
-                  const el = e.currentTarget as HTMLImageElement;
-                  if (!el.src.includes('/mock/placeholder-1.svg')) {
-                    el.src = '/mock/placeholder-1.svg';
-                  }
-                }}
-                className="w-full h-full object-contain"
-              />
+              {failedIndices.has(idx) ? (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 select-none">
+                  <CameraIcon className="w-12 h-12 opacity-30 mb-2 stroke-[1.5]" />
+                  <span className="text-xs font-semibold uppercase tracking-wider opacity-60">Photo unavailable</span>
+                </div>
+              ) : (
+                <img
+                  src={ikUrl(img.url, { w: 960, q: 75 })}
+                  alt={`${title} - photo ${idx + 1}`}
+                  loading={idx === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                  width="960"
+                  height="720"
+                  onError={() => {
+                    setFailedIndices(prev => new Set(prev).add(idx));
+                  }}
+                  className="w-full h-full object-contain"
+                />
+              )}
             </div>
           ))}
         </div>
@@ -98,19 +105,22 @@ export function Gallery({ images, title }: GalleryProps) {
                     : 'border-transparent opacity-70 hover:opacity-100'
                 }`}
               >
-                <img
-                  src={ikUrl(img.url, { w: 120, q: 60 })}
-                  alt=""
-                  width="64"
-                  height="64"
-                  className="w-full h-full object-cover"
-                  onError={e => {
-                    const el = e.currentTarget as HTMLImageElement;
-                    if (!el.src.includes('/mock/placeholder-1.svg')) {
-                      el.src = '/mock/placeholder-1.svg';
-                    }
-                  }}
-                />
+                {failedIndices.has(idx) ? (
+                  <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400">
+                    <CameraIcon className="w-5 h-5 opacity-40" />
+                  </div>
+                ) : (
+                  <img
+                    src={ikUrl(img.url, { w: 120, q: 60 })}
+                    alt=""
+                    width="64"
+                    height="64"
+                    className="w-full h-full object-cover"
+                    onError={() => {
+                      setFailedIndices(prev => new Set(prev).add(idx));
+                    }}
+                  />
+                )}
               </button>
             );
           })}

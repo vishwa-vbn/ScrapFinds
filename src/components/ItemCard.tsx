@@ -15,13 +15,26 @@ export function ItemCard({ item }: ItemCardProps) {
   const displayTitle = getItemTitle(item);
 
   const rawUrl = item.images && item.images.length > 0 ? item.images[0].url : '';
-  const targetUrl = rawUrl ? ikUrl(rawUrl, { w: 480, q: 70 }) : '';
+  const transformedUrl = rawUrl ? ikUrl(rawUrl, { w: 480, q: 70 }) : '';
+  const [triedRaw, setTriedRaw] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  // If item images change, reset any error state
+  // If item images change, reset state
   useEffect(() => {
+    setTriedRaw(false);
     setHasError(false);
   }, [rawUrl]);
+
+  const activeSrc = !triedRaw ? (transformedUrl || rawUrl) : rawUrl;
+
+  const handleImageError = () => {
+    if (!triedRaw && rawUrl && transformedUrl !== rawUrl) {
+      // Fallback from transformed URL to raw ImageKit URL directly
+      setTriedRaw(true);
+    } else {
+      setHasError(true);
+    }
+  };
 
   return (
     <Link
@@ -30,16 +43,16 @@ export function ItemCard({ item }: ItemCardProps) {
     >
       {/* 4:3 Aspect Ratio Image Container */}
       <div className="relative aspect-[4/3] w-full bg-slate-100 dark:bg-slate-800/80 overflow-hidden">
-        {targetUrl && !hasError ? (
+        {activeSrc && !hasError ? (
           <img
-            key={rawUrl || item.id}
-            src={targetUrl}
+            key={activeSrc}
+            src={activeSrc}
             alt={displayTitle}
             loading="lazy"
             decoding="async"
             width="480"
             height="360"
-            onError={() => setHasError(true)}
+            onError={handleImageError}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (

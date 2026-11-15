@@ -290,17 +290,6 @@ export default defineConfig(({ mode }) => {
           navigateFallback: '/index.html',
           navigateFallbackAllowlist: [/^(?!\/__).*/],
           navigateFallbackDenylist: [/^\/api\//],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/ik\.imagekit\.io\//,
-              handler: 'StaleWhileRevalidate',
-              options: {
-                cacheName: 'ik-images-v2',
-                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
-                cacheableResponse: { statuses: [200] },
-              },
-            },
-          ],
         },
       }),
     ],

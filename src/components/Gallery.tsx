@@ -10,6 +10,7 @@ interface GalleryProps {
 
 export function Gallery({ images, title }: GalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [triedRawIndices, setTriedRawIndices] = useState<Set<number>>(new Set());
   const [failedIndices, setFailedIndices] = useState<Set<number>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -52,32 +53,41 @@ export function Gallery({ images, title }: GalleryProps) {
           tabIndex={0}
           aria-label="Image gallery"
         >
-          {images.map((img, idx) => (
-            <div
-              key={img.fileId || idx}
-              className="w-full h-full shrink-0 snap-center flex items-center justify-center bg-black/5"
-            >
-              {failedIndices.has(idx) ? (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 select-none">
-                  <CameraIcon className="w-12 h-12 opacity-30 mb-2 stroke-[1.5]" />
-                  <span className="text-xs font-semibold uppercase tracking-wider opacity-60">Photo unavailable</span>
-                </div>
-              ) : (
-                <img
-                  src={ikUrl(img.url, { w: 960, q: 75 })}
-                  alt={`${title} - photo ${idx + 1}`}
-                  loading={idx === 0 ? 'eager' : 'lazy'}
-                  decoding="async"
-                  width="960"
-                  height="720"
-                  onError={() => {
-                    setFailedIndices(prev => new Set(prev).add(idx));
-                  }}
-                  className="w-full h-full object-contain"
-                />
-              )}
-            </div>
-          ))}
+          {images.map((img, idx) => {
+            const isRaw = triedRawIndices.has(idx);
+            const mainSrc = isRaw ? img.url : ikUrl(img.url, { w: 960, q: 75 });
+            return (
+              <div
+                key={img.fileId || idx}
+                className="w-full h-full shrink-0 snap-center flex items-center justify-center bg-black/5"
+              >
+                {failedIndices.has(idx) ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 select-none">
+                    <CameraIcon className="w-12 h-12 opacity-30 mb-2 stroke-[1.5]" />
+                    <span className="text-xs font-semibold uppercase tracking-wider opacity-60">Photo unavailable</span>
+                  </div>
+                ) : (
+                  <img
+                    key={mainSrc}
+                    src={mainSrc}
+                    alt={`${title} - photo ${idx + 1}`}
+                    loading={idx === 0 ? 'eager' : 'lazy'}
+                    decoding="async"
+                    width="960"
+                    height="720"
+                    onError={() => {
+                      if (!triedRawIndices.has(idx)) {
+                        setTriedRawIndices(prev => new Set(prev).add(idx));
+                      } else {
+                        setFailedIndices(prev => new Set(prev).add(idx));
+                      }
+                    }}
+                    className="w-full h-full object-contain"
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Floating Indicator */}
@@ -93,6 +103,8 @@ export function Gallery({ images, title }: GalleryProps) {
         <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar">
           {images.map((img, idx) => {
             const isSelected = activeIndex === idx;
+            const isRaw = triedRawIndices.has(idx);
+            const thumbSrc = isRaw ? img.url : ikUrl(img.url, { w: 120, q: 60 });
             return (
               <button
                 key={img.fileId || idx}
@@ -111,13 +123,18 @@ export function Gallery({ images, title }: GalleryProps) {
                   </div>
                 ) : (
                   <img
-                    src={ikUrl(img.url, { w: 120, q: 60 })}
+                    key={thumbSrc}
+                    src={thumbSrc}
                     alt=""
                     width="64"
                     height="64"
                     className="w-full h-full object-cover"
                     onError={() => {
-                      setFailedIndices(prev => new Set(prev).add(idx));
+                      if (!triedRawIndices.has(idx)) {
+                        setTriedRawIndices(prev => new Set(prev).add(idx));
+                      } else {
+                        setFailedIndices(prev => new Set(prev).add(idx));
+                      }
                     }}
                   />
                 )}

@@ -8,6 +8,12 @@ import App from './App';
 // Register Service Worker immediately for PWA installability & offline caching
 registerSW({ immediate: true });
 
+// Purge old SW image caches so images fetch directly from ImageKit CDN
+if (typeof window !== 'undefined' && 'caches' in window) {
+  caches.delete('ik-images').catch(() => {});
+  caches.delete('ik-images-v2').catch(() => {});
+}
+
 // Capture install prompt BEFORE React mounts
 initInstallCapture();
 

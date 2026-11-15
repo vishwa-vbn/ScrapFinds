@@ -558,7 +558,12 @@ export function Dashboard() {
                                     alt=""
                                     className="w-full h-full object-cover"
                                     onError={e => {
-                                      e.currentTarget.style.display = 'none';
+                                      const target = e.currentTarget;
+                                      if (target.src !== item.images[0].url) {
+                                        target.src = item.images[0].url;
+                                      } else {
+                                        target.style.display = 'none';
+                                      }
                                     }}
                                   />
                                 ) : (

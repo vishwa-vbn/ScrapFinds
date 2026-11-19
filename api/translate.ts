@@ -79,6 +79,50 @@ async function verifyAdmin(req: VercelRequest): Promise<AdminCheck> {
   }
 }
 
+let cachedModel: string | null = null;
+
+async function getAvailableModel(key: string, requestedModel?: string): Promise<string> {
+  if (
+    requestedModel &&
+    requestedModel !== 'gemini-3.8-flash' &&
+    requestedModel !== 'gemini-1.5-flash' &&
+    requestedModel !== 'gemini-1.5-flash-8b'
+  ) {
+    return requestedModel;
+  }
+
+  if (cachedModel) return cachedModel;
+
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+    if (r.ok) {
+      const data = (await r.json()) as { models?: Array<{ name?: string; supportedGenerationMethods?: string[] }> };
+      const models = (data.models || [])
+        .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+        .map(m => m.name?.replace(/^models\//, '') || '')
+        .filter(Boolean);
+
+      // Prioritize modern 2.5-flash, then any active flash model, then any generateContent model
+      const preferred =
+        models.find(m => m === 'gemini-2.5-flash') ||
+        models.find(m => m.includes('2.5-flash')) ||
+        models.find(m => m.includes('flash')) ||
+        models[0];
+
+      if (preferred) {
+        cachedModel = preferred;
+        console.log(`Using active Gemini model: ${preferred}`);
+        return preferred;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to query ListModels from Google, falling back to gemini-2.5-flash:', err);
+  }
+
+  cachedModel = 'gemini-2.5-flash';
+  return 'gemini-2.5-flash';
+}
+
 async function callGeminiApi(
   key: string,
   chosenModel: string,
@@ -86,13 +130,12 @@ async function callGeminiApi(
   schema: any,
   maxTokens = 600
 ): Promise<{ ok: true; text: string } | { ok: false; status: number; error: string }> {
-  // Always-available production Google Flash models in priority order
+  const dynamicModel = await getAvailableModel(key, chosenModel);
   const modelsToTry = [
-    chosenModel || 'gemini-3.5-flash-lite',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash',
+    dynamicModel,
+    'gemini-2.5-flash',
     'gemini-2.0-flash',
-    'gemini-1.5-flash-8b',
+    'gemini-1.5-flash',
   ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
 
   let lastError = '';
@@ -104,6 +147,9 @@ async function callGeminiApi(
       responseMimeType: 'application/json',
       responseSchema: schema,
       maxOutputTokens: maxTokens,
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
     };
 
     try {
@@ -116,16 +162,31 @@ async function callGeminiApi(
         }),
       });
 
+      // If model does not support thinkingConfig, retry without it
+      if (!resp.ok && resp.status === 400) {
+        const errClone = await resp.clone().text();
+        if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
+          delete genConfig.thinkingConfig;
+          resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: genConfig,
+            }),
+          });
+        }
+      }
+
       if (!resp.ok) {
         const errText = await resp.text();
-        // If 404 (model not found/available), try next model in fallback list
         if (
           resp.status === 404 ||
           errText.includes('not found') ||
           errText.includes('not supported') ||
           errText.includes('is not available')
         ) {
-          console.warn(`Model ${m} not available, attempting fallback to next flash model...`);
+          console.warn(`Model ${m} not available, attempting next fallback...`);
           lastError = errText;
           continue;
         }

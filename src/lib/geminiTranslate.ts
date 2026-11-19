@@ -26,6 +26,48 @@ interface TranslateOptions {
   idToken?: string;
 }
 
+let cachedClientModel: string | null = null;
+
+async function getAvailableModelClient(key: string, requestedModel?: string): Promise<string> {
+  if (
+    requestedModel &&
+    requestedModel !== 'gemini-3.8-flash' &&
+    requestedModel !== 'gemini-1.5-flash' &&
+    requestedModel !== 'gemini-1.5-flash-8b'
+  ) {
+    return requestedModel;
+  }
+
+  if (cachedClientModel) return cachedClientModel;
+
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+    if (r.ok) {
+      const data = (await r.json()) as { models?: Array<{ name?: string; supportedGenerationMethods?: string[] }> };
+      const models = (data.models || [])
+        .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+        .map(m => m.name?.replace(/^models\//, '') || '')
+        .filter(Boolean);
+
+      const preferred =
+        models.find(m => m === 'gemini-2.5-flash') ||
+        models.find(m => m.includes('2.5-flash')) ||
+        models.find(m => m.includes('flash')) ||
+        models[0];
+
+      if (preferred) {
+        cachedClientModel = preferred;
+        return preferred;
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  cachedClientModel = 'gemini-2.5-flash';
+  return 'gemini-2.5-flash';
+}
+
 async function callGeminiDirectClient(
   clientKey: string,
   chosenModel: string,
@@ -33,11 +75,12 @@ async function callGeminiDirectClient(
   schema: any,
   maxTokens = 600
 ): Promise<string> {
+  const dynamicModel = await getAvailableModelClient(clientKey, chosenModel);
   const modelsToTry = [
-    chosenModel || 'gemini-1.5-flash',
-    'gemini-1.5-flash',
+    dynamicModel,
+    'gemini-2.5-flash',
     'gemini-2.0-flash',
-    'gemini-1.5-flash-8b',
+    'gemini-1.5-flash',
   ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
 
   let lastError = '';
@@ -49,6 +92,9 @@ async function callGeminiDirectClient(
       responseMimeType: 'application/json',
       responseSchema: schema,
       maxOutputTokens: maxTokens,
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
     };
 
     try {
@@ -60,6 +106,21 @@ async function callGeminiDirectClient(
           generationConfig: genConfig,
         }),
       });
+
+      if (!resp.ok && resp.status === 400) {
+        const errClone = await resp.clone().text();
+        if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
+          delete genConfig.thinkingConfig;
+          resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: genConfig,
+            }),
+          });
+        }
+      }
 
       if (!resp.ok) {
         const errText = await resp.text();

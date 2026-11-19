@@ -163,10 +163,10 @@ function devApiPlugin(env: Record<string, string>): Plugin {
           req.on('end', async () => {
             try {
               const { action, rawText, title, description, category, condition } = JSON.parse(body || '{}');
-              const requestedModel = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+              const requestedModel = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
 
               async function callDevGemini(promptText: string, schema: any, maxTokens = 600) {
-                const models = [requestedModel, 'gemini-1.5-flash', 'gemini-2.0-flash'].filter(
+                const models = [requestedModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'].filter(
                   (v, i, a) => Boolean(v) && a.indexOf(v) === i
                 );
 

@@ -14,9 +14,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(auth.status).json({ error: auth.msg });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on server' });
+    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on server (ensure you redeployed after adding the env var in Vercel)' });
   }
 
   const { title, description, category, condition } = req.body || {};

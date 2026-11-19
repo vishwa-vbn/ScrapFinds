@@ -27,7 +27,7 @@ export async function translateItemWithGemini({
 }: TranslateOptions): Promise<TranslationsResult> {
   const payload = { title, description, category, condition };
 
-  // 1. Try serverless endpoint first with a tight timeout to prevent long hangs
+  // 1. Try serverless backend endpoint (/api/translate)
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (idToken) {
@@ -35,7 +35,7 @@ export async function translateItemWithGemini({
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     const res = await fetch('/api/translate', {
       method: 'POST',
@@ -48,12 +48,31 @@ export async function translateItemWithGemini({
     if (res.ok) {
       const data = await res.json();
       return data as TranslationsResult;
-    } else {
-      const errData = await res.json().catch(() => ({}));
-      console.warn('Translate endpoint returned non-OK status, falling back to direct API:', res.status, errData);
     }
-  } catch (err) {
-    console.warn('Serverless translate endpoint error, falling back to direct API:', err);
+
+    // Capture the real server error message
+    const errData = await res.json().catch(() => ({}));
+    const serverError = errData?.error || `Server returned HTTP ${res.status}`;
+
+    // If endpoint doesn't exist (e.g. standard Vite dev without serverless api) AND client key is provided, fallback
+    const clientKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (res.status === 404 && clientKey) {
+      console.warn('API endpoint /api/translate not found (404), using client Gemini key.');
+    } else {
+      // Surface the actual server error
+      throw new Error(serverError);
+    }
+  } catch (err: any) {
+    // If it's a server error we threw above, bubble it up directly
+    if (err?.message && !err.message.includes('Failed to fetch') && !err.message.includes('abort') && !err.message.includes('NetworkError')) {
+      throw err;
+    }
+
+    const clientKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!clientKey) {
+      throw new Error(err?.message || 'Network error reaching /api/translate');
+    }
+    console.warn('Serverless endpoint unreachable, falling back to direct client API call:', err);
   }
 
   // 2. Direct fallback (e.g. for Vite local dev without `vercel dev` server running)

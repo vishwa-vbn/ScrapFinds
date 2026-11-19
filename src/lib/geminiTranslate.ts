@@ -27,18 +27,23 @@ export async function translateItemWithGemini({
 }: TranslateOptions): Promise<TranslationsResult> {
   const payload = { title, description, category, condition };
 
-  // 1. Try serverless endpoint first
+  // 1. Try serverless endpoint first with a tight timeout to prevent long hangs
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (idToken) {
       headers.Authorization = `Bearer ${idToken}`;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
     const res = await fetch('/api/translate', {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json();
@@ -67,9 +72,10 @@ Item details:
 - Description: ${description || ''}
 
 Requirements:
-1. Translate the title concisely into natural Kannada and Hindi (keep brand/model names in easily recognizable script or standard transliteration).
+1. Translate the title concisely into natural Kannada and Hindi (keep brand/model names recognizable).
 2. Translate the description into clear, conversational, buyer-friendly language highlighting the working condition.
-3. Return ONLY a single raw valid JSON object with exact structure:
+3. Keep translations concise and direct (under 35 words each) to ensure fast generation and clear reading.
+4. Return ONLY a single raw valid JSON object with exact structure:
 {
   "kn": {
     "title": "...",
@@ -82,20 +88,64 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${clientKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: 'application/json',
+  const model = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${clientKey}`;
+
+  const generationConfig: Record<string, any> = {
+    temperature: 0.2,
+    responseMimeType: 'application/json',
+    responseSchema: {
+      type: 'OBJECT',
+      properties: {
+        kn: {
+          type: 'OBJECT',
+          properties: {
+            title: { type: 'STRING' },
+            description: { type: 'STRING' },
+          },
+          required: ['title', 'description'],
         },
-      }),
+        hi: {
+          type: 'OBJECT',
+          properties: {
+            title: { type: 'STRING' },
+            description: { type: 'STRING' },
+          },
+          required: ['title', 'description'],
+        },
+      },
+      required: ['kn', 'hi'],
+    },
+    maxOutputTokens: 500,
+    thinkingConfig: {
+      thinkingBudget: 0,
+    },
+  };
+
+  let res = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig,
+    }),
+  });
+
+  // If model endpoint rejects thinkingConfig, gracefully retry without it
+  if (!res.ok && res.status === 400) {
+    const errClone = await res.clone().text();
+    if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
+      delete generationConfig.thinkingConfig;
+      res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig,
+        }),
+      });
     }
-  );
+  }
 
   if (!res.ok) {
     const errText = await res.text();

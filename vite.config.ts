@@ -173,9 +173,10 @@ Item details:
 - Description: ${description || ''}
 
 Requirements:
-1. Translate the title concisely into natural Kannada and Hindi (keep brand/model names in easily recognizable script or standard transliteration).
+1. Translate the title concisely into natural Kannada and Hindi (keep brand/model names recognizable).
 2. Translate the description into clear, conversational, buyer-friendly language highlighting the working condition.
-3. Return ONLY a single raw valid JSON object with exact structure:
+3. Keep translations concise and direct (under 35 words each) to ensure fast generation and clear reading.
+4. Return ONLY a single raw valid JSON object with exact structure:
 {
   "kn": {
     "title": "...",
@@ -188,20 +189,63 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-              const gResp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`,
-                {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: {
-                      temperature: 0.2,
-                      responseMimeType: 'application/json',
+              const model = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
+              const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+
+              const generationConfig: Record<string, any> = {
+                temperature: 0.2,
+                responseMimeType: 'application/json',
+                responseSchema: {
+                  type: 'OBJECT',
+                  properties: {
+                    kn: {
+                      type: 'OBJECT',
+                      properties: {
+                        title: { type: 'STRING' },
+                        description: { type: 'STRING' },
+                      },
+                      required: ['title', 'description'],
                     },
-                  }),
+                    hi: {
+                      type: 'OBJECT',
+                      properties: {
+                        title: { type: 'STRING' },
+                        description: { type: 'STRING' },
+                      },
+                      required: ['title', 'description'],
+                    },
+                  },
+                  required: ['kn', 'hi'],
+                },
+                maxOutputTokens: 500,
+                thinkingConfig: {
+                  thinkingBudget: 0,
+                },
+              };
+
+              let gResp = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig,
+                }),
+              });
+
+              if (!gResp.ok && gResp.status === 400) {
+                const errClone = await gResp.clone().text();
+                if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
+                  delete generationConfig.thinkingConfig;
+                  gResp = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      contents: [{ parts: [{ text: prompt }] }],
+                      generationConfig,
+                    }),
+                  });
                 }
-              );
+              }
 
               if (!gResp.ok) {
                 const errText = await gResp.text();

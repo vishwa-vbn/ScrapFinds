@@ -163,8 +163,37 @@ function devApiPlugin(env: Record<string, string>): Plugin {
           req.on('end', async () => {
             try {
               const { action, rawText, title, description, category, condition } = JSON.parse(body || '{}');
-              const model = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
-              const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+              const requestedModel = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+
+              async function callDevGemini(promptText: string, schema: any, maxTokens = 600) {
+                const models = [requestedModel, 'gemini-1.5-flash', 'gemini-2.0-flash'].filter(
+                  (v, i, a) => Boolean(v) && a.indexOf(v) === i
+                );
+
+                for (const m of models) {
+                  const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`;
+                  const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      contents: [{ parts: [{ text: promptText }] }],
+                      generationConfig: {
+                        temperature: 0.2,
+                        responseMimeType: 'application/json',
+                        responseSchema: schema,
+                        maxOutputTokens: maxTokens,
+                      },
+                    }),
+                  });
+
+                  if (resp.ok) {
+                    const data: any = await resp.json();
+                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) return { ok: true, text };
+                  }
+                }
+                return { ok: false, error: 'Gemini Flash models unavailable' };
+              }
 
               // ACTION 1: Format raw text
               if (action === 'format' || (rawText && !title && !description)) {
@@ -198,61 +227,22 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-                const formatConfig: Record<string, any> = {
-                  temperature: 0.2,
-                  responseMimeType: 'application/json',
-                  responseSchema: {
-                    type: 'OBJECT',
-                    properties: {
-                      title: { type: 'STRING' },
-                      description: { type: 'STRING' },
-                    },
-                    required: ['title', 'description'],
+                const formatSchema = {
+                  type: 'OBJECT',
+                  properties: {
+                    title: { type: 'STRING' },
+                    description: { type: 'STRING' },
                   },
-                  maxOutputTokens: 500,
-                  thinkingConfig: {
-                    thinkingBudget: 0,
-                  },
+                  required: ['title', 'description'],
                 };
 
-                let fResp = await fetch(apiUrl, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [{ parts: [{ text: formatPrompt }] }],
-                    generationConfig: formatConfig,
-                  }),
-                });
-
-                if (!fResp.ok && fResp.status === 400) {
-                  const errClone = await fResp.clone().text();
-                  if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
-                    delete formatConfig.thinkingConfig;
-                    fResp = await fetch(apiUrl, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        contents: [{ parts: [{ text: formatPrompt }] }],
-                        generationConfig: formatConfig,
-                      }),
-                    });
-                  }
-                }
-
-                if (!fResp.ok) {
-                  const errText = await fResp.text();
-                  res.statusCode = fResp.status;
-                  return res.end(JSON.stringify({ error: `Gemini API error: ${errText}` }));
-                }
-
-                const fData: any = await fResp.json();
-                const candText = fData?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!candText) {
+                const fRes = await callDevGemini(formatPrompt, formatSchema, 600);
+                if (!fRes.ok || !fRes.text) {
                   res.statusCode = 502;
-                  return res.end(JSON.stringify({ error: 'No formatted content returned' }));
+                  return res.end(JSON.stringify({ error: fRes.error || 'Failed to format content' }));
                 }
 
-                const clean = candText.replace(/^```json/i, '').replace(/```$/i, '').trim();
+                const clean = fRes.text.replace(/^```json/i, '').replace(/```$/i, '').trim();
                 res.statusCode = 200;
                 return res.end(clean);
               }
@@ -285,75 +275,36 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-              const generationConfig: Record<string, any> = {
-                temperature: 0.2,
-                responseMimeType: 'application/json',
-                responseSchema: {
-                  type: 'OBJECT',
-                  properties: {
-                    kn: {
-                      type: 'OBJECT',
-                      properties: {
-                        title: { type: 'STRING' },
-                        description: { type: 'STRING' },
-                      },
-                      required: ['title', 'description'],
+              const translateSchema = {
+                type: 'OBJECT',
+                properties: {
+                  kn: {
+                    type: 'OBJECT',
+                    properties: {
+                      title: { type: 'STRING' },
+                      description: { type: 'STRING' },
                     },
-                    hi: {
-                      type: 'OBJECT',
-                      properties: {
-                        title: { type: 'STRING' },
-                        description: { type: 'STRING' },
-                      },
-                      required: ['title', 'description'],
-                    },
+                    required: ['title', 'description'],
                   },
-                  required: ['kn', 'hi'],
+                  hi: {
+                    type: 'OBJECT',
+                    properties: {
+                      title: { type: 'STRING' },
+                      description: { type: 'STRING' },
+                    },
+                    required: ['title', 'description'],
+                  },
                 },
-                maxOutputTokens: 500,
-                thinkingConfig: {
-                  thinkingBudget: 0,
-                },
+                required: ['kn', 'hi'],
               };
 
-              let gResp = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig,
-                }),
-              });
-
-              if (!gResp.ok && gResp.status === 400) {
-                const errClone = await gResp.clone().text();
-                if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
-                  delete generationConfig.thinkingConfig;
-                  gResp = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      contents: [{ parts: [{ text: prompt }] }],
-                      generationConfig,
-                    }),
-                  });
-                }
-              }
-
-              if (!gResp.ok) {
-                const errText = await gResp.text();
-                res.statusCode = gResp.status;
-                return res.end(JSON.stringify({ error: `Gemini API error: ${errText}` }));
-              }
-
-              const gData: any = await gResp.json();
-              const candidateText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (!candidateText) {
+              const tRes = await callDevGemini(prompt, translateSchema, 600);
+              if (!tRes.ok || !tRes.text) {
                 res.statusCode = 502;
-                return res.end(JSON.stringify({ error: 'No translation content returned' }));
+                return res.end(JSON.stringify({ error: tRes.error || 'Failed to generate translations' }));
               }
 
-              const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
+              const cleanJson = tRes.text.replace(/^```json/i, '').replace(/```$/i, '').trim();
               res.statusCode = 200;
               return res.end(cleanJson);
             } catch (err: unknown) {

@@ -79,6 +79,73 @@ async function verifyAdmin(req: VercelRequest): Promise<AdminCheck> {
   }
 }
 
+async function callGeminiApi(
+  key: string,
+  chosenModel: string,
+  promptText: string,
+  schema: any,
+  maxTokens = 600
+): Promise<{ ok: true; text: string } | { ok: false; status: number; error: string }> {
+  // Always-available production Google Flash models in priority order
+  const modelsToTry = [
+    chosenModel || 'gemini-3.5-flash-lite',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash-8b',
+  ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
+
+  let lastError = '';
+
+  for (const m of modelsToTry) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`;
+    const genConfig: Record<string, any> = {
+      temperature: 0.2,
+      responseMimeType: 'application/json',
+      responseSchema: schema,
+      maxOutputTokens: maxTokens,
+    };
+
+    try {
+      let resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: genConfig,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        // If 404 (model not found/available), try next model in fallback list
+        if (
+          resp.status === 404 ||
+          errText.includes('not found') ||
+          errText.includes('not supported') ||
+          errText.includes('is not available')
+        ) {
+          console.warn(`Model ${m} not available, attempting fallback to next flash model...`);
+          lastError = errText;
+          continue;
+        }
+        return { ok: false, status: resp.status, error: errText };
+      }
+
+      const data: any = await resp.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) {
+        return { ok: false, status: 502, error: 'No content returned from Gemini' };
+      }
+      return { ok: true, text };
+    } catch (e: any) {
+      lastError = e?.message || 'Network error';
+    }
+  }
+
+  return { ok: false, status: 502, error: `All Flash models failed: ${lastError}` };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -107,9 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { action, rawText, title, description, category, condition } = body || {};
-
-  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const requestedModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
   // ACTION 1: Clean & Format raw unorganized text into clean English title + spec table
   if (action === 'format' || (rawText && !title && !description)) {
@@ -142,66 +207,26 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-    const formatConfig: Record<string, any> = {
-      temperature: 0.2,
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: 'OBJECT',
-        properties: {
-          title: { type: 'STRING' },
-          description: { type: 'STRING' },
-        },
-        required: ['title', 'description'],
+    const formatSchema = {
+      type: 'OBJECT',
+      properties: {
+        title: { type: 'STRING' },
+        description: { type: 'STRING' },
       },
-      maxOutputTokens: 500,
-      thinkingConfig: {
-        thinkingBudget: 0,
-      },
+      required: ['title', 'description'],
     };
 
+    const result = await callGeminiApi(apiKey, requestedModel, formatPrompt, formatSchema, 600);
+    if (!result.ok) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
     try {
-      let response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: formatPrompt }] }],
-          generationConfig: formatConfig,
-        }),
-      });
-
-      if (!response.ok && response.status === 400) {
-        const errClone = await response.clone().text();
-        if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
-          delete formatConfig.thinkingConfig;
-          response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: formatPrompt }] }],
-              generationConfig: formatConfig,
-            }),
-          });
-        }
-      }
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('Gemini format error:', response.status, errText);
-        return res.status(502).json({ error: `Gemini API error ${response.status}: ${errText}` });
-      }
-
-      const data: any = await response.json();
-      const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!candidateText) {
-        return res.status(502).json({ error: 'No formatted content generated' });
-      }
-
-      const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
+      const cleanJson = result.text.replace(/^```json/i, '').replace(/```$/i, '').trim();
       const parsed = JSON.parse(cleanJson);
       return res.status(200).json(parsed);
-    } catch (err) {
-      console.error('Format error:', err);
-      return res.status(500).json({ error: (err as Error).message || 'Failed to format raw text' });
+    } catch {
+      return res.status(502).json({ error: 'Failed to parse AI format response' });
     }
   }
 
@@ -237,81 +262,39 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const generationConfig: Record<string, any> = {
-    temperature: 0.2,
-    responseMimeType: 'application/json',
-    responseSchema: {
-      type: 'OBJECT',
-      properties: {
-        kn: {
-          type: 'OBJECT',
-          properties: {
-            title: { type: 'STRING' },
-            description: { type: 'STRING' },
-          },
-          required: ['title', 'description'],
+  const translateSchema = {
+    type: 'OBJECT',
+    properties: {
+      kn: {
+        type: 'OBJECT',
+        properties: {
+          title: { type: 'STRING' },
+          description: { type: 'STRING' },
         },
-        hi: {
-          type: 'OBJECT',
-          properties: {
-            title: { type: 'STRING' },
-            description: { type: 'STRING' },
-          },
-          required: ['title', 'description'],
-        },
+        required: ['title', 'description'],
       },
-      required: ['kn', 'hi'],
+      hi: {
+        type: 'OBJECT',
+        properties: {
+          title: { type: 'STRING' },
+          description: { type: 'STRING' },
+        },
+        required: ['title', 'description'],
+      },
     },
-    maxOutputTokens: 500,
-    thinkingConfig: {
-      thinkingBudget: 0,
-    },
+    required: ['kn', 'hi'],
   };
 
+  const result = await callGeminiApi(apiKey, requestedModel, prompt, translateSchema, 600);
+  if (!result.ok) {
+    return res.status(result.status).json({ error: result.error });
+  }
+
   try {
-    let response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig,
-      }),
-    });
-
-    // If model endpoint rejects thinkingConfig, gracefully retry without it
-    if (!response.ok && response.status === 400) {
-      const errClone = await response.clone().text();
-      if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
-        delete generationConfig.thinkingConfig;
-        response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig,
-          }),
-        });
-      }
-    }
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Gemini API error:', response.status, errText);
-      return res.status(502).json({ error: `Gemini API returned ${response.status}: ${errText}` });
-    }
-
-    const data: any = await response.json();
-    const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!candidateText) {
-      return res.status(502).json({ error: 'No translation generated by Gemini' });
-    }
-
-    const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
+    const cleanJson = result.text.replace(/^```json/i, '').replace(/```$/i, '').trim();
     const parsed = JSON.parse(cleanJson);
-
     return res.status(200).json(parsed);
-  } catch (err) {
-    console.error('Translation error:', err);
-    return res.status(500).json({ error: (err as Error).message || 'Failed to generate translations' });
+  } catch {
+    return res.status(502).json({ error: 'Failed to parse AI translation response' });
   }
 }

@@ -26,6 +26,71 @@ interface TranslateOptions {
   idToken?: string;
 }
 
+async function callGeminiDirectClient(
+  clientKey: string,
+  chosenModel: string,
+  promptText: string,
+  schema: any,
+  maxTokens = 600
+): Promise<string> {
+  const modelsToTry = [
+    chosenModel || 'gemini-1.5-flash',
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash-8b',
+  ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
+
+  let lastError = '';
+
+  for (const m of modelsToTry) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${clientKey}`;
+    const genConfig: Record<string, any> = {
+      temperature: 0.2,
+      responseMimeType: 'application/json',
+      responseSchema: schema,
+      maxOutputTokens: maxTokens,
+    };
+
+    try {
+      let resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: genConfig,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        if (
+          resp.status === 404 ||
+          errText.includes('not found') ||
+          errText.includes('not supported') ||
+          errText.includes('is not available')
+        ) {
+          console.warn(`Model ${m} not available, trying fallback to next flash model...`);
+          lastError = errText;
+          continue;
+        }
+        throw new Error(`Gemini API returned ${resp.status}: ${errText}`);
+      }
+
+      const data = await resp.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) {
+        throw new Error('No content returned by Gemini');
+      }
+      return text;
+    } catch (err: any) {
+      if (err.message?.includes('Gemini API returned')) throw err;
+      lastError = err.message || 'Network error';
+    }
+  }
+
+  throw new Error(`All Gemini Flash models failed: ${lastError}`);
+}
+
 /**
  * Takes unorganized, messy raw text copied from websites/catalogs
  * and extracts a clean, professional English title and description with specifications.
@@ -120,60 +185,17 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const model = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${clientKey}`;
-
-  const formatConfig: Record<string, any> = {
-    temperature: 0.2,
-    responseMimeType: 'application/json',
-    responseSchema: {
-      type: 'OBJECT',
-      properties: {
-        title: { type: 'STRING' },
-        description: { type: 'STRING' },
-      },
-      required: ['title', 'description'],
+  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+  const formatSchema = {
+    type: 'OBJECT',
+    properties: {
+      title: { type: 'STRING' },
+      description: { type: 'STRING' },
     },
-    maxOutputTokens: 500,
-    thinkingConfig: {
-      thinkingBudget: 0,
-    },
+    required: ['title', 'description'],
   };
 
-  let res = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: formatPrompt }] }],
-      generationConfig: formatConfig,
-    }),
-  });
-
-  if (!res.ok && res.status === 400) {
-    const errClone = await res.clone().text();
-    if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
-      delete formatConfig.thinkingConfig;
-      res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: formatPrompt }] }],
-          generationConfig: formatConfig,
-        }),
-      });
-    }
-  }
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini API returned ${res.status}: ${errText}`);
-  }
-
-  const data = await res.json();
-  const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!candidateText) {
-    throw new Error('No content returned by Gemini');
-  }
+  const candidateText = await callGeminiDirectClient(clientKey, requestedModel, formatPrompt, formatSchema, 600);
 
   const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
   return JSON.parse(cleanJson) as CleanItemResult;
@@ -273,75 +295,31 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const model = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${clientKey}`;
-
-  const generationConfig: Record<string, any> = {
-    temperature: 0.2,
-    responseMimeType: 'application/json',
-    responseSchema: {
-      type: 'OBJECT',
-      properties: {
-        kn: {
-          type: 'OBJECT',
-          properties: {
-            title: { type: 'STRING' },
-            description: { type: 'STRING' },
-          },
-          required: ['title', 'description'],
+  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+  const translateSchema = {
+    type: 'OBJECT',
+    properties: {
+      kn: {
+        type: 'OBJECT',
+        properties: {
+          title: { type: 'STRING' },
+          description: { type: 'STRING' },
         },
-        hi: {
-          type: 'OBJECT',
-          properties: {
-            title: { type: 'STRING' },
-            description: { type: 'STRING' },
-          },
-          required: ['title', 'description'],
-        },
+        required: ['title', 'description'],
       },
-      required: ['kn', 'hi'],
+      hi: {
+        type: 'OBJECT',
+        properties: {
+          title: { type: 'STRING' },
+          description: { type: 'STRING' },
+        },
+        required: ['title', 'description'],
+      },
     },
-    maxOutputTokens: 500,
-    thinkingConfig: {
-      thinkingBudget: 0,
-    },
+    required: ['kn', 'hi'],
   };
 
-  let res = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig,
-    }),
-  });
-
-  // If model endpoint rejects thinkingConfig, gracefully retry without it
-  if (!res.ok && res.status === 400) {
-    const errClone = await res.clone().text();
-    if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
-      delete generationConfig.thinkingConfig;
-      res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig,
-        }),
-      });
-    }
-  }
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini API returned ${res.status}: ${errText}`);
-  }
-
-  const data = await res.json();
-  const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!candidateText) {
-    throw new Error('No content returned by Gemini');
-  }
+  const candidateText = await callGeminiDirectClient(clientKey, requestedModel, prompt, translateSchema, 600);
 
   const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
   return JSON.parse(cleanJson) as TranslationsResult;

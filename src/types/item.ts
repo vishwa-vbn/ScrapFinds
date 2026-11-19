@@ -10,13 +10,13 @@ export const imageSchema = z.object({
 
 export const itemTranslationSchema = z.object({
   title: z.string().min(1).max(120),
-  description: z.string().max(1200),
+  description: z.string().max(2500),
 });
 
 export const itemSchema = z.object({
   id: z.string().min(1),
-  title: z.string().min(2).max(80),
-  description: z.string().max(1000),
+  title: z.string().min(2).max(100),
+  description: z.string().max(2000),
   category: z.string().min(1).max(30),
   condition: conditionSchema,
   status: statusSchema,

@@ -4,7 +4,10 @@ import { useAdminAuth } from './useAdminAuth';
 import { CameraIcon, SparklesIcon, CheckIcon } from '../../components/Icons';
 import { getRepo } from '../../lib/repo';
 import { uploadImage, deleteImage } from '../../lib/imagekit';
-import { translateItemWithGemini } from '../../lib/geminiTranslate';
+import {
+  translateItemWithGemini,
+  cleanAndFormatItemWithGemini,
+} from '../../lib/geminiTranslate';
 import { categories } from '../../config/categories';
 import { strings } from '../../config/strings';
 import {
@@ -35,6 +38,12 @@ export function ItemForm() {
   const [condition, setCondition] = useState<Condition>('good');
   const [status, setStatus] = useState<Status>('available');
   const [soldPrice, setSoldPrice] = useState<string>('');
+
+  // Raw Product Data AI Assistant
+  const [rawText, setRawText] = useState('');
+  const [formatting, setFormatting] = useState(false);
+  const [formatSuccess, setFormatSuccess] = useState(false);
+  const [showRawInput, setShowRawInput] = useState(true);
 
   // Localized Translations (Kannada & Hindi)
   const [knTitle, setKnTitle] = useState('');
@@ -145,10 +154,47 @@ export function ItemForm() {
     });
   };
 
-  // AI Translation with Gemini
+  // AI Format: Clean raw unorganized text into clean Title + Description with Specs
+  const handleAiFormat = async () => {
+    if (!rawText.trim()) {
+      alert('Please paste some product text or specifications first.');
+      return;
+    }
+
+    try {
+      setFormatting(true);
+      setError(null);
+      const token = await getIdToken().catch(() => undefined);
+
+      const result = await cleanAndFormatItemWithGemini({
+        rawText: rawText.trim(),
+        category,
+        condition,
+        currentTitle: title.trim(),
+        idToken: token,
+      });
+
+      if (result.title) {
+        setTitle(result.title);
+      }
+      if (result.description) {
+        setDescription(result.description);
+      }
+
+      setFormatSuccess(true);
+      setTimeout(() => setFormatSuccess(false), 5000);
+    } catch (err) {
+      console.error('Gemini format error:', err);
+      alert((err as Error).message || 'Failed to format raw text. Please try again.');
+    } finally {
+      setFormatting(false);
+    }
+  };
+
+  // AI Translation with Gemini (translates user's finalized English into Kannada & Hindi)
   const handleAutoTranslate = async () => {
     if (!title.trim() && !description.trim()) {
-      alert('Please enter at least a Title or Description before generating translations.');
+      alert('Please enter or generate a Title or Description before generating translations.');
       return;
     }
 
@@ -389,6 +435,67 @@ export function ItemForm() {
           )}
         </div>
 
+        {/* AI Quick Auto-Fill from Raw Web Data */}
+        <div className="bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/30 p-5 rounded-2xl border border-indigo-200/80 dark:border-indigo-900/50 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                <SparklesIcon className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-[var(--fg)]">
+                  AI Auto-Fill from Raw Product Data
+                </h3>
+                <p className="text-[11px] text-[var(--muted)]">
+                  Paste messy text copied from Amazon, Flipkart, specs, or notes — AI extracts a clean title & spec table.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowRawInput(prev => !prev)}
+              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            >
+              {showRawInput ? 'Hide' : 'Open'}
+            </button>
+          </div>
+
+          {showRawInput && (
+            <div className="space-y-3 pt-1">
+              <textarea
+                rows={3}
+                value={rawText}
+                onChange={e => setRawText(e.target.value)}
+                placeholder="Paste unorganized text here (e.g. copied from Amazon, Flipkart, manufacturer site, full specs list)..."
+                className="w-full px-3 py-2.5 bg-white dark:bg-slate-800/80 border border-indigo-200 dark:border-slate-700 rounded-xl text-xs text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <span className="text-[11px] text-[var(--muted)]">
+                  Context used: <strong>{categories.find(c => c.id === category)?.label || category}</strong> • <strong>{condition}</strong>
+                </span>
+
+                <button
+                  type="button"
+                  disabled={formatting || !rawText.trim()}
+                  onClick={handleAiFormat}
+                  className="min-h-[38px] px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                >
+                  <SparklesIcon className={`w-3.5 h-3.5 ${formatting ? 'animate-spin' : ''}`} />
+                  <span>{formatting ? 'Analyzing & Formatting…' : 'Generate Title & Specs'}</span>
+                </button>
+              </div>
+
+              {formatSuccess && (
+                <div className="p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-300 text-xs font-semibold flex items-center gap-2">
+                  <CheckIcon className="w-4 h-4 text-green-600 shrink-0" />
+                  <span>Title and specifications generated! Review or modify below, then generate Kannada & Hindi.</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Title */}
         <div className="space-y-1.5">
           <label htmlFor="title" className="block text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
@@ -399,14 +506,14 @@ export function ItemForm() {
             type="text"
             required
             minLength={2}
-            maxLength={80}
+            maxLength={100}
             value={title}
             onChange={e => setTitle(e.target.value)}
             placeholder="e.g. Vintage Philips Wooden Stereo Radio"
             className="w-full min-h-[44px] px-3.5 py-2.5 bg-[var(--card)] text-[var(--fg)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           />
           <div className="text-[11px] text-right text-[var(--muted)]">
-            {title.length}/80
+            {title.length}/100
           </div>
         </div>
 
@@ -490,22 +597,27 @@ export function ItemForm() {
           </p>
         </div>
 
-        {/* Description */}
+        {/* Description & Specs */}
         <div className="space-y-1.5">
-          <label htmlFor="description" className="block text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-            {strings.descriptionLabel} (English / Default)
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="description" className="block text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+              {strings.descriptionLabel} & Specs (English / Default)
+            </label>
+            <span className="text-[11px] text-green-700 dark:text-green-400 font-medium">
+              Editable — modify before translating
+            </span>
+          </div>
           <textarea
             id="description"
-            rows={4}
-            maxLength={1000}
+            rows={5}
+            maxLength={2000}
             value={description}
             onChange={e => setDescription(e.target.value)}
-            placeholder="Details about working condition, ports, wear, cosmetic details…"
-            className="w-full px-3.5 py-2.5 bg-[var(--card)] text-[var(--fg)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="Details about working condition, specifications, inclusions…"
+            className="w-full px-3.5 py-2.5 bg-[var(--card)] text-[var(--fg)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-xs sm:text-sm"
           />
           <div className="text-[11px] text-right text-[var(--muted)]">
-            {description.length}/1000
+            {description.length}/2000
           </div>
         </div>
 
@@ -520,7 +632,7 @@ export function ItemForm() {
                 </h3>
               </div>
               <p className="text-xs text-[var(--muted)] pt-0.5">
-                Powered by Gemini. Auto-generates local buyer-friendly descriptions in Kannada & Hindi.
+                Translates your finalized English description & specifications into natural Kannada & Hindi.
               </p>
             </div>
 
@@ -531,7 +643,7 @@ export function ItemForm() {
               className="min-h-[40px] px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shrink-0"
             >
               <SparklesIcon className={`w-3.5 h-3.5 ${translating ? 'animate-spin' : ''}`} />
-              <span>{translating ? 'Generating Translations…' : 'Generate with Gemini'}</span>
+              <span>{translating ? 'Generating Translations…' : 'Generate Kannada & Hindi'}</span>
             </button>
           </div>
 

@@ -162,7 +162,102 @@ function devApiPlugin(env: Record<string, string>): Plugin {
           });
           req.on('end', async () => {
             try {
-              const { title, description, category, condition } = JSON.parse(body || '{}');
+              const { action, rawText, title, description, category, condition } = JSON.parse(body || '{}');
+              const model = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
+              const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+
+              // ACTION 1: Format raw text
+              if (action === 'format' || (rawText && !title && !description)) {
+                if (!rawText || !rawText.trim()) {
+                  res.statusCode = 400;
+                  return res.end(JSON.stringify({ error: 'Raw text is required' }));
+                }
+
+                const formatPrompt = `You are an expert product catalog copywriter for a second-hand, recovered, and scrap item shop in India.
+The user pasted unorganized raw text copied from e-commerce sites, manufacturer specs, or seller notes.
+Extract the core item context and generate a clean, professional product title, a short buyer-friendly description, and a structured specification list.
+
+Item context:
+- Category: ${category || 'general'}
+- Condition: ${condition || 'good'}
+- Existing Title: ${title || ''}
+- Raw Copied Text:
+${rawText}
+
+Requirements:
+1. Title: Crisp, professional title (under 75 characters) with Brand + Model + Key specs (e.g. "Sony Bravia 43-inch 4K UHD Smart Android TV").
+2. Description:
+   - 2-3 clear sentences explaining what the item is and its condition appeal for a local buyer.
+   - Follow with a clean "Specifications:" section using bullet points ("• Spec: Value") for the most important specs (Brand, Model, Dimensions/Capacity, Key Features, Inclusions).
+   - Filter out all irrelevant fluff: shipping policies, foreign prices, return policies, review ratings, or long marketing jargon.
+   - Keep the entire description concise (under 160 words).
+3. Return ONLY a single raw valid JSON object with exact structure:
+{
+  "title": "Clean Product Title",
+  "description": "Clean description sentences.\n\nSpecifications:\n• Brand: ...\n• Model: ...\n• ..."
+}
+Do not wrap in markdown or backticks. Return valid JSON only.`;
+
+                const formatConfig: Record<string, any> = {
+                  temperature: 0.2,
+                  responseMimeType: 'application/json',
+                  responseSchema: {
+                    type: 'OBJECT',
+                    properties: {
+                      title: { type: 'STRING' },
+                      description: { type: 'STRING' },
+                    },
+                    required: ['title', 'description'],
+                  },
+                  maxOutputTokens: 500,
+                  thinkingConfig: {
+                    thinkingBudget: 0,
+                  },
+                };
+
+                let fResp = await fetch(apiUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: formatPrompt }] }],
+                    generationConfig: formatConfig,
+                  }),
+                });
+
+                if (!fResp.ok && fResp.status === 400) {
+                  const errClone = await fResp.clone().text();
+                  if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
+                    delete formatConfig.thinkingConfig;
+                    fResp = await fetch(apiUrl, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        contents: [{ parts: [{ text: formatPrompt }] }],
+                        generationConfig: formatConfig,
+                      }),
+                    });
+                  }
+                }
+
+                if (!fResp.ok) {
+                  const errText = await fResp.text();
+                  res.statusCode = fResp.status;
+                  return res.end(JSON.stringify({ error: `Gemini API error: ${errText}` }));
+                }
+
+                const fData: any = await fResp.json();
+                const candText = fData?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!candText) {
+                  res.statusCode = 502;
+                  return res.end(JSON.stringify({ error: 'No formatted content returned' }));
+                }
+
+                const clean = candText.replace(/^```json/i, '').replace(/```$/i, '').trim();
+                res.statusCode = 200;
+                return res.end(clean);
+              }
+
+              // ACTION 2: Translate
               const prompt = `You are a professional local second-hand and scrap item catalog copywriter in India.
 Translate and adapt the following item listing into natural, clear Kannada (kn) and Hindi (hi) suitable for local second-hand buyers.
 
@@ -170,12 +265,13 @@ Item details:
 - Category: ${category || 'general'}
 - Condition: ${condition || 'good'}
 - Title: ${title || ''}
-- Description: ${description || ''}
+- Description & Specs:
+${description || ''}
 
 Requirements:
 1. Translate the title concisely into natural Kannada and Hindi (keep brand/model names recognizable).
-2. Translate the description into clear, conversational, buyer-friendly language highlighting the working condition.
-3. Keep translations concise and direct (under 35 words each) to ensure fast generation and clear reading.
+2. Translate the description into clear, conversational, buyer-friendly language highlighting the working condition. If specifications are listed, preserve the bullet points clearly.
+3. Keep translations concise and direct to ensure fast generation and clear reading.
 4. Return ONLY a single raw valid JSON object with exact structure:
 {
   "kn": {
@@ -188,9 +284,6 @@ Requirements:
   }
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
-
-              const model = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
-              const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
 
               const generationConfig: Record<string, any> = {
                 temperature: 0.2,

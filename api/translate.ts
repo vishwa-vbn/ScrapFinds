@@ -106,24 +106,124 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const { title, description, category, condition } = body || {};
+  const { action, rawText, title, description, category, condition } = body || {};
+
+  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  // ACTION 1: Clean & Format raw unorganized text into clean English title + spec table
+  if (action === 'format' || (rawText && !title && !description)) {
+    if (!rawText || !rawText.trim()) {
+      return res.status(400).json({ error: 'Raw text is required to format details' });
+    }
+
+    const formatPrompt = `You are an expert product catalog copywriter for a second-hand, recovered, and scrap item shop in India.
+The user pasted unorganized raw text copied from e-commerce sites, manufacturer specs, or seller notes.
+Extract the core item context and generate a clean, professional product title, a short buyer-friendly description, and a structured specification list.
+
+Item context:
+- Category: ${category || 'general'}
+- Condition: ${condition || 'good'}
+- Existing Title: ${title || ''}
+- Raw Copied Text:
+${rawText}
+
+Requirements:
+1. Title: Crisp, professional title (under 75 characters) with Brand + Model + Key specs (e.g. "Sony Bravia 43-inch 4K UHD Smart Android TV").
+2. Description:
+   - 2-3 clear sentences explaining what the item is and its condition appeal for a local buyer.
+   - Follow with a clean "Specifications:" section using bullet points ("• Spec: Value") for the most important specs (Brand, Model, Dimensions/Capacity, Key Features, Inclusions).
+   - Filter out all irrelevant fluff: shipping policies, foreign prices, return policies, review ratings, or long marketing jargon.
+   - Keep the entire description concise (under 160 words).
+3. Return ONLY a single raw valid JSON object with exact structure:
+{
+  "title": "Clean Product Title",
+  "description": "Clean description sentences.\n\nSpecifications:\n• Brand: ...\n• Model: ...\n• ..."
+}
+Do not wrap in markdown or backticks. Return valid JSON only.`;
+
+    const formatConfig: Record<string, any> = {
+      temperature: 0.2,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          title: { type: 'STRING' },
+          description: { type: 'STRING' },
+        },
+        required: ['title', 'description'],
+      },
+      maxOutputTokens: 500,
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
+    };
+
+    try {
+      let response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: formatPrompt }] }],
+          generationConfig: formatConfig,
+        }),
+      });
+
+      if (!response.ok && response.status === 400) {
+        const errClone = await response.clone().text();
+        if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
+          delete formatConfig.thinkingConfig;
+          response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: formatPrompt }] }],
+              generationConfig: formatConfig,
+            }),
+          });
+        }
+      }
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('Gemini format error:', response.status, errText);
+        return res.status(502).json({ error: `Gemini API error ${response.status}: ${errText}` });
+      }
+
+      const data: any = await response.json();
+      const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!candidateText) {
+        return res.status(502).json({ error: 'No formatted content generated' });
+      }
+
+      const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      return res.status(200).json(parsed);
+    } catch (err) {
+      console.error('Format error:', err);
+      return res.status(500).json({ error: (err as Error).message || 'Failed to format raw text' });
+    }
+  }
+
+  // ACTION 2: Multilingual translation (Kannada & Hindi) from user-approved English
   if (!title && !description) {
     return res.status(400).json({ error: 'Title or description is required for translation' });
   }
 
   const prompt = `You are a professional local second-hand and scrap item catalog copywriter in India.
-Translate and adapt the following item listing into natural, clear Kannada (kn) and Hindi (hi) suitable for local second-hand buyers.
+Translate and adapt the following clean item listing into natural, clear Kannada (kn) and Hindi (hi) suitable for local second-hand buyers.
 
 Item details:
 - Category: ${category || 'general'}
 - Condition: ${condition || 'good'}
 - Title: ${title || ''}
-- Description: ${description || ''}
+- Description & Specs:
+${description || ''}
 
 Requirements:
 1. Translate the title concisely into natural Kannada and Hindi (keep brand/model names recognizable).
-2. Translate the description into clear, conversational, buyer-friendly language highlighting the working condition.
-3. Keep translations concise and direct (under 35 words each) to ensure fast generation and clear reading.
+2. Translate the description into clear, conversational, buyer-friendly language highlighting the working condition. If specifications are listed, preserve the bullet points clearly.
+3. Keep translations concise and direct to ensure fast generation and clear reading.
 4. Return ONLY a single raw valid JSON object with exact structure:
 {
   "kn": {
@@ -136,9 +236,6 @@ Requirements:
   }
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
-
-  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const generationConfig: Record<string, any> = {
     temperature: 0.2,

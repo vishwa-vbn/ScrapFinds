@@ -39,17 +39,20 @@ async function callGeminiDirectClient(
   maxTokens = 600
 ): Promise<string> {
   const candidates: EndpointCandidate[] = [
-    { apiVer: 'v1', model: 'gemini-1.5-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-flash' },
+    { apiVer: 'v1', model: 'gemini-3.8-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-flash-lite' },
+    { apiVer: 'v1', model: 'gemini-3.5-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-pro' },
     { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
-    { apiVer: 'v1', model: 'gemini-1.5-pro' },
-    { apiVer: 'v1beta', model: 'gemini-2.0-flash' },
-    { apiVer: 'v1beta', model: 'gemini-1.5-flash' },
+    { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
   ];
 
   if (
     chosenModel &&
-    chosenModel !== 'gemini-3.8-flash' &&
-    chosenModel !== 'gemini-1.5-flash-8b'
+    chosenModel !== 'gemini-1.5-flash' &&
+    chosenModel !== 'gemini-1.5-flash-8b' &&
+    chosenModel !== 'gemini-2.0-flash'
   ) {
     candidates.unshift(
       { apiVer: 'v1', model: chosenModel },
@@ -225,7 +228,7 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
   const formatSchema = {
     type: 'OBJECT',
     properties: {
@@ -335,7 +338,7 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
   const translateSchema = {
     type: 'OBJECT',
     properties: {

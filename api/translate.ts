@@ -91,19 +91,22 @@ async function callGeminiApi(
   schema: any,
   maxTokens = 600
 ): Promise<{ ok: true; text: string } | { ok: false; status: number; error: string }> {
-  // Stable GA models on v1 first, then v1beta models
+  // Active models on Google AI (v1 first, then v1beta)
   const candidates: EndpointCandidate[] = [
-    { apiVer: 'v1', model: 'gemini-1.5-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-flash' },
+    { apiVer: 'v1', model: 'gemini-3.8-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-flash-lite' },
+    { apiVer: 'v1', model: 'gemini-3.5-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-pro' },
     { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
-    { apiVer: 'v1', model: 'gemini-1.5-pro' },
-    { apiVer: 'v1beta', model: 'gemini-2.0-flash' },
-    { apiVer: 'v1beta', model: 'gemini-1.5-flash' },
+    { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
   ];
 
   if (
     chosenModel &&
-    chosenModel !== 'gemini-3.8-flash' &&
-    chosenModel !== 'gemini-1.5-flash-8b'
+    chosenModel !== 'gemini-1.5-flash' &&
+    chosenModel !== 'gemini-1.5-flash-8b' &&
+    chosenModel !== 'gemini-2.0-flash'
   ) {
     candidates.unshift(
       { apiVer: 'v1', model: chosenModel },
@@ -224,7 +227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { action, rawText, title, description, category, condition } = body || {};
-  const requestedModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  const requestedModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
   // ACTION 1: Clean & Format raw unorganized text into clean English title + spec table
   if (action === 'format' || (rawText && !title && !description)) {

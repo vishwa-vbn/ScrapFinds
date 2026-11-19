@@ -166,12 +166,17 @@ function devApiPlugin(env: Record<string, string>): Plugin {
               const requestedModel = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
 
               async function callDevGemini(promptText: string, schema: any, maxTokens = 600) {
-                const models = [requestedModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'].filter(
-                  (v, i, a) => Boolean(v) && a.indexOf(v) === i
-                );
+                const candidates = [
+                  { apiVer: 'v1', model: requestedModel },
+                  { apiVer: 'v1', model: 'gemini-2.5-flash' },
+                  { apiVer: 'v1', model: 'gemini-3.8-flash' },
+                  { apiVer: 'v1', model: 'gemini-2.5-flash-lite' },
+                  { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
+                  { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
+                ];
 
-                for (const m of models) {
-                  const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`;
+                for (const { apiVer, model } of candidates) {
+                  const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${geminiKey}`;
                   const resp = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

@@ -26,46 +26,9 @@ interface TranslateOptions {
   idToken?: string;
 }
 
-let cachedClientModel: string | null = null;
-
-async function getAvailableModelClient(key: string, requestedModel?: string): Promise<string> {
-  if (
-    requestedModel &&
-    requestedModel !== 'gemini-3.8-flash' &&
-    requestedModel !== 'gemini-1.5-flash' &&
-    requestedModel !== 'gemini-1.5-flash-8b'
-  ) {
-    return requestedModel;
-  }
-
-  if (cachedClientModel) return cachedClientModel;
-
-  try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-    if (r.ok) {
-      const data = (await r.json()) as { models?: Array<{ name?: string; supportedGenerationMethods?: string[] }> };
-      const models = (data.models || [])
-        .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-        .map(m => m.name?.replace(/^models\//, '') || '')
-        .filter(Boolean);
-
-      const preferred =
-        models.find(m => m === 'gemini-2.5-flash') ||
-        models.find(m => m.includes('2.5-flash')) ||
-        models.find(m => m.includes('flash')) ||
-        models[0];
-
-      if (preferred) {
-        cachedClientModel = preferred;
-        return preferred;
-      }
-    }
-  } catch {
-    // fallback
-  }
-
-  cachedClientModel = 'gemini-2.5-flash';
-  return 'gemini-2.5-flash';
+interface EndpointCandidate {
+  apiVer: 'v1' | 'v1beta';
+  model: string;
 }
 
 async function callGeminiDirectClient(
@@ -75,27 +38,43 @@ async function callGeminiDirectClient(
   schema: any,
   maxTokens = 600
 ): Promise<string> {
-  const dynamicModel = await getAvailableModelClient(clientKey, chosenModel);
-  const modelsToTry = [
-    dynamicModel,
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-  ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
+  const candidates: EndpointCandidate[] = [
+    { apiVer: 'v1', model: 'gemini-1.5-flash' },
+    { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
+    { apiVer: 'v1', model: 'gemini-1.5-pro' },
+    { apiVer: 'v1beta', model: 'gemini-2.0-flash' },
+    { apiVer: 'v1beta', model: 'gemini-1.5-flash' },
+  ];
+
+  if (
+    chosenModel &&
+    chosenModel !== 'gemini-3.8-flash' &&
+    chosenModel !== 'gemini-1.5-flash-8b'
+  ) {
+    candidates.unshift(
+      { apiVer: 'v1', model: chosenModel },
+      { apiVer: 'v1beta', model: chosenModel }
+    );
+  }
+
+  const uniqueCandidates = candidates.filter(
+    (c, i, a) => a.findIndex(x => x.apiVer === c.apiVer && x.model === c.model) === i
+  );
 
   let lastError = '';
 
-  for (const m of modelsToTry) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${clientKey}`;
+  for (const { apiVer, model } of uniqueCandidates) {
+    const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${clientKey}`;
     const genConfig: Record<string, any> = {
       temperature: 0.2,
       responseMimeType: 'application/json',
       responseSchema: schema,
       maxOutputTokens: maxTokens,
-      thinkingConfig: {
-        thinkingBudget: 0,
-      },
     };
+
+    if (apiVer === 'v1beta') {
+      genConfig.thinkingConfig = { thinkingBudget: 0 };
+    }
 
     try {
       let resp = await fetch(url, {
@@ -130,7 +109,7 @@ async function callGeminiDirectClient(
           errText.includes('not supported') ||
           errText.includes('is not available')
         ) {
-          console.warn(`Model ${m} not available, trying fallback to next flash model...`);
+          console.warn(`Endpoint ${apiVer}/models/${model} not available, trying next...`);
           lastError = errText;
           continue;
         }

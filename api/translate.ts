@@ -79,48 +79,9 @@ async function verifyAdmin(req: VercelRequest): Promise<AdminCheck> {
   }
 }
 
-let cachedModel: string | null = null;
-
-async function getAvailableModel(key: string, requestedModel?: string): Promise<string> {
-  if (
-    requestedModel &&
-    requestedModel !== 'gemini-3.8-flash' &&
-    requestedModel !== 'gemini-1.5-flash' &&
-    requestedModel !== 'gemini-1.5-flash-8b'
-  ) {
-    return requestedModel;
-  }
-
-  if (cachedModel) return cachedModel;
-
-  try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-    if (r.ok) {
-      const data = (await r.json()) as { models?: Array<{ name?: string; supportedGenerationMethods?: string[] }> };
-      const models = (data.models || [])
-        .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-        .map(m => m.name?.replace(/^models\//, '') || '')
-        .filter(Boolean);
-
-      // Prioritize modern 2.5-flash, then any active flash model, then any generateContent model
-      const preferred =
-        models.find(m => m === 'gemini-2.5-flash') ||
-        models.find(m => m.includes('2.5-flash')) ||
-        models.find(m => m.includes('flash')) ||
-        models[0];
-
-      if (preferred) {
-        cachedModel = preferred;
-        console.log(`Using active Gemini model: ${preferred}`);
-        return preferred;
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to query ListModels from Google, falling back to gemini-2.5-flash:', err);
-  }
-
-  cachedModel = 'gemini-2.5-flash';
-  return 'gemini-2.5-flash';
+interface EndpointCandidate {
+  apiVer: 'v1' | 'v1beta';
+  model: string;
 }
 
 async function callGeminiApi(
@@ -130,27 +91,45 @@ async function callGeminiApi(
   schema: any,
   maxTokens = 600
 ): Promise<{ ok: true; text: string } | { ok: false; status: number; error: string }> {
-  const dynamicModel = await getAvailableModel(key, chosenModel);
-  const modelsToTry = [
-    dynamicModel,
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-  ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
+  // Stable GA models on v1 first, then v1beta models
+  const candidates: EndpointCandidate[] = [
+    { apiVer: 'v1', model: 'gemini-1.5-flash' },
+    { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
+    { apiVer: 'v1', model: 'gemini-1.5-pro' },
+    { apiVer: 'v1beta', model: 'gemini-2.0-flash' },
+    { apiVer: 'v1beta', model: 'gemini-1.5-flash' },
+  ];
+
+  if (
+    chosenModel &&
+    chosenModel !== 'gemini-3.8-flash' &&
+    chosenModel !== 'gemini-1.5-flash-8b'
+  ) {
+    candidates.unshift(
+      { apiVer: 'v1', model: chosenModel },
+      { apiVer: 'v1beta', model: chosenModel }
+    );
+  }
+
+  // Deduplicate
+  const uniqueCandidates = candidates.filter(
+    (c, i, a) => a.findIndex(x => x.apiVer === c.apiVer && x.model === c.model) === i
+  );
 
   let lastError = '';
 
-  for (const m of modelsToTry) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`;
+  for (const { apiVer, model } of uniqueCandidates) {
+    const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${key}`;
     const genConfig: Record<string, any> = {
       temperature: 0.2,
       responseMimeType: 'application/json',
       responseSchema: schema,
       maxOutputTokens: maxTokens,
-      thinkingConfig: {
-        thinkingBudget: 0,
-      },
     };
+
+    if (apiVer === 'v1beta') {
+      genConfig.thinkingConfig = { thinkingBudget: 0 };
+    }
 
     try {
       let resp = await fetch(url, {
@@ -186,7 +165,7 @@ async function callGeminiApi(
           errText.includes('not supported') ||
           errText.includes('is not available')
         ) {
-          console.warn(`Model ${m} not available, attempting next fallback...`);
+          console.warn(`Endpoint ${apiVer}/models/${model} not available, attempting next...`);
           lastError = errText;
           continue;
         }
@@ -203,6 +182,16 @@ async function callGeminiApi(
       lastError = e?.message || 'Network error';
     }
   }
+
+  // Attempt dynamic discovery to show the exact available models if all failed
+  try {
+    const listResp = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${key}`);
+    if (listResp.ok) {
+      const data = (await listResp.json()) as { models?: Array<{ name?: string }> };
+      const avail = (data.models || []).map(m => m.name).join(', ');
+      return { ok: false, status: 502, error: `All models failed. Available on v1: [${avail}]. Last error: ${lastError}` };
+    }
+  } catch {}
 
   return { ok: false, status: 502, error: `All Flash models failed: ${lastError}` };
 }

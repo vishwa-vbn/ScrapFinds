@@ -31,21 +31,51 @@ interface EndpointCandidate {
   model: string;
 }
 
+function parseAiJson(rawText: string): any {
+  if (!rawText) throw new Error('Empty AI response');
+  const text = rawText.trim();
+
+  // 1. Direct parse
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  // 2. Strip markdown fences: ```json ... ``` or ``` ... ```
+  const fenceRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+  const match = text.match(fenceRegex);
+  if (match && match[1]) {
+    try {
+      return JSON.parse(match[1].trim());
+    } catch {}
+  }
+
+  // 3. Extract outermost { ... }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = text.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  throw new Error(`Failed to parse AI response: ${text.slice(0, 120)}`);
+}
+
 async function callGeminiDirectClient(
   clientKey: string,
   chosenModel: string,
   promptText: string,
   schema: any,
-  maxTokens = 600
+  maxTokens = 2048
 ): Promise<string> {
   const candidates: EndpointCandidate[] = [
-    { apiVer: 'v1', model: 'gemini-2.5-flash' },
-    { apiVer: 'v1', model: 'gemini-3.8-flash' },
-    { apiVer: 'v1', model: 'gemini-2.5-flash-lite' },
-    { apiVer: 'v1', model: 'gemini-3.5-flash' },
-    { apiVer: 'v1', model: 'gemini-2.5-pro' },
-    { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
     { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
+    { apiVer: 'v1beta', model: 'gemini-3.5-flash' },
+    { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
+    { apiVer: 'v1', model: 'gemini-3.8-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-flash-lite' },
   ];
 
   if (
@@ -55,8 +85,8 @@ async function callGeminiDirectClient(
     chosenModel !== 'gemini-2.0-flash'
   ) {
     candidates.unshift(
-      { apiVer: 'v1', model: chosenModel },
-      { apiVer: 'v1beta', model: chosenModel }
+      { apiVer: 'v1beta', model: chosenModel },
+      { apiVer: 'v1', model: chosenModel }
     );
   }
 
@@ -228,7 +258,7 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
+  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
   const formatSchema = {
     type: 'OBJECT',
     properties: {
@@ -238,10 +268,8 @@ Do not wrap in markdown or backticks. Return valid JSON only.`;
     required: ['title', 'description'],
   };
 
-  const candidateText = await callGeminiDirectClient(clientKey, requestedModel, formatPrompt, formatSchema, 600);
-
-  const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
-  return JSON.parse(cleanJson) as CleanItemResult;
+  const candidateText = await callGeminiDirectClient(clientKey, requestedModel, formatPrompt, formatSchema, 2048);
+  return parseAiJson(candidateText) as CleanItemResult;
 }
 
 /**
@@ -338,7 +366,7 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
+  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
   const translateSchema = {
     type: 'OBJECT',
     properties: {
@@ -362,9 +390,7 @@ Do not wrap in markdown or backticks. Return valid JSON only.`;
     required: ['kn', 'hi'],
   };
 
-  const candidateText = await callGeminiDirectClient(clientKey, requestedModel, prompt, translateSchema, 600);
-
-  const cleanJson = candidateText.replace(/^```json/i, '').replace(/```$/i, '').trim();
-  return JSON.parse(cleanJson) as TranslationsResult;
+  const candidateText = await callGeminiDirectClient(clientKey, requestedModel, prompt, translateSchema, 2048);
+  return parseAiJson(candidateText) as TranslationsResult;
 }
 

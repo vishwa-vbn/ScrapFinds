@@ -84,22 +84,51 @@ interface EndpointCandidate {
   model: string;
 }
 
+function parseAiJson(rawText: string): any {
+  if (!rawText) throw new Error('Empty AI response');
+  const text = rawText.trim();
+
+  // 1. Try direct parse
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  // 2. Strip markdown fences: ```json ... ``` or ``` ... ```
+  const fenceRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+  const match = text.match(fenceRegex);
+  if (match && match[1]) {
+    try {
+      return JSON.parse(match[1].trim());
+    } catch {}
+  }
+
+  // 3. Extract outermost { ... }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = text.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  throw new Error(`Failed to parse AI response: ${text.slice(0, 120)}`);
+}
+
 async function callGeminiApi(
   key: string,
   chosenModel: string,
   promptText: string,
   schema: any,
-  maxTokens = 600
+  maxTokens = 2048
 ): Promise<{ ok: true; text: string } | { ok: false; status: number; error: string }> {
-  // Active models on Google AI (v1 first, then v1beta)
+  // Active models on Google AI (v1beta first for Gemini 3.8/3.5, then v1 fallback)
   const candidates: EndpointCandidate[] = [
-    { apiVer: 'v1', model: 'gemini-2.5-flash' },
-    { apiVer: 'v1', model: 'gemini-3.8-flash' },
-    { apiVer: 'v1', model: 'gemini-2.5-flash-lite' },
-    { apiVer: 'v1', model: 'gemini-3.5-flash' },
-    { apiVer: 'v1', model: 'gemini-2.5-pro' },
-    { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
     { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
+    { apiVer: 'v1beta', model: 'gemini-3.5-flash' },
+    { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-flash' },
+    { apiVer: 'v1', model: 'gemini-2.5-pro' },
   ];
 
   if (
@@ -109,8 +138,8 @@ async function callGeminiApi(
     chosenModel !== 'gemini-2.0-flash'
   ) {
     candidates.unshift(
-      { apiVer: 'v1', model: chosenModel },
-      { apiVer: 'v1beta', model: chosenModel }
+      { apiVer: 'v1beta', model: chosenModel },
+      { apiVer: 'v1', model: chosenModel }
     );
   }
 
@@ -227,7 +256,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { action, rawText, title, description, category, condition } = body || {};
-  const requestedModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const requestedModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
   // ACTION 1: Clean & Format raw unorganized text into clean English title + spec table
   if (action === 'format' || (rawText && !title && !description)) {
@@ -269,17 +298,16 @@ Do not wrap in markdown or backticks. Return valid JSON only.`;
       required: ['title', 'description'],
     };
 
-    const result = await callGeminiApi(apiKey, requestedModel, formatPrompt, formatSchema, 600);
+    const result = await callGeminiApi(apiKey, requestedModel, formatPrompt, formatSchema, 2048);
     if (!result.ok) {
       return res.status(result.status).json({ error: result.error });
     }
 
     try {
-      const cleanJson = result.text.replace(/^```json/i, '').replace(/```$/i, '').trim();
-      const parsed = JSON.parse(cleanJson);
+      const parsed = parseAiJson(result.text);
       return res.status(200).json(parsed);
-    } catch {
-      return res.status(502).json({ error: 'Failed to parse AI format response' });
+    } catch (parseErr: any) {
+      return res.status(502).json({ error: 'Failed to parse AI format response: ' + (parseErr?.message || '') });
     }
   }
 
@@ -338,16 +366,15 @@ Do not wrap in markdown or backticks. Return valid JSON only.`;
     required: ['kn', 'hi'],
   };
 
-  const result = await callGeminiApi(apiKey, requestedModel, prompt, translateSchema, 600);
+  const result = await callGeminiApi(apiKey, requestedModel, prompt, translateSchema, 2048);
   if (!result.ok) {
     return res.status(result.status).json({ error: result.error });
   }
 
   try {
-    const cleanJson = result.text.replace(/^```json/i, '').replace(/```$/i, '').trim();
-    const parsed = JSON.parse(cleanJson);
+    const parsed = parseAiJson(result.text);
     return res.status(200).json(parsed);
-  } catch {
-    return res.status(502).json({ error: 'Failed to parse AI translation response' });
+  } catch (parseErr: any) {
+    return res.status(502).json({ error: 'Failed to parse AI translation response: ' + (parseErr?.message || '') });
   }
 }

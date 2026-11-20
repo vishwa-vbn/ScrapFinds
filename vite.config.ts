@@ -163,39 +163,85 @@ function devApiPlugin(env: Record<string, string>): Plugin {
           req.on('end', async () => {
             try {
               const { action, rawText, title, description, category, condition } = JSON.parse(body || '{}');
-              const requestedModel = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
+              const requestedModel = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
 
-              async function callDevGemini(promptText: string, schema: any, maxTokens = 600) {
+              function parseAiJson(rawText: string): any {
+                if (!rawText) throw new Error('Empty AI response');
+                const text = rawText.trim();
+                try {
+                  return JSON.parse(text);
+                } catch {}
+                const fenceRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+                const match = text.match(fenceRegex);
+                if (match && match[1]) {
+                  try {
+                    return JSON.parse(match[1].trim());
+                  } catch {}
+                }
+                const firstBrace = text.indexOf('{');
+                const lastBrace = text.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace > firstBrace) {
+                  const candidate = text.slice(firstBrace, lastBrace + 1);
+                  try {
+                    return JSON.parse(candidate);
+                  } catch {}
+                }
+                throw new Error(`Failed to parse AI response: ${text.slice(0, 120)}`);
+              }
+
+              async function callDevGemini(promptText: string, schema: any, maxTokens = 2048) {
                 const candidates = [
-                  { apiVer: 'v1', model: requestedModel },
-                  { apiVer: 'v1', model: 'gemini-2.5-flash' },
-                  { apiVer: 'v1', model: 'gemini-3.8-flash' },
-                  { apiVer: 'v1', model: 'gemini-2.5-flash-lite' },
-                  { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
+                  { apiVer: 'v1beta', model: requestedModel },
                   { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
+                  { apiVer: 'v1beta', model: 'gemini-3.5-flash' },
+                  { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
+                  { apiVer: 'v1', model: 'gemini-3.8-flash' },
+                  { apiVer: 'v1', model: 'gemini-2.5-flash' },
                 ];
 
                 for (const { apiVer, model } of candidates) {
                   const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${geminiKey}`;
-                  const resp = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      contents: [{ parts: [{ text: promptText }] }],
-                      generationConfig: {
-                        temperature: 0.2,
-                        responseMimeType: 'application/json',
-                        responseSchema: schema,
-                        maxOutputTokens: maxTokens,
-                      },
-                    }),
-                  });
-
-                  if (resp.ok) {
-                    const data: any = await resp.json();
-                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (text) return { ok: true, text };
+                  const genConfig: Record<string, any> = {
+                    temperature: 0.2,
+                    responseMimeType: 'application/json',
+                    responseSchema: schema,
+                    maxOutputTokens: maxTokens,
+                  };
+                  if (apiVer === 'v1beta') {
+                    genConfig.thinkingConfig = { thinkingBudget: 0 };
                   }
+
+                  try {
+                    let resp = await fetch(url, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        contents: [{ parts: [{ text: promptText }] }],
+                        generationConfig: genConfig,
+                      }),
+                    });
+
+                    if (!resp.ok && resp.status === 400) {
+                      const errClone = await resp.clone().text();
+                      if (errClone.includes('thinkingConfig') || errClone.includes('Unknown field')) {
+                        delete genConfig.thinkingConfig;
+                        resp = await fetch(url, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            contents: [{ parts: [{ text: promptText }] }],
+                            generationConfig: genConfig,
+                          }),
+                        });
+                      }
+                    }
+
+                    if (resp.ok) {
+                      const data: any = await resp.json();
+                      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                      if (text) return { ok: true, text };
+                    }
+                  } catch {}
                 }
                 return { ok: false, error: 'Gemini Flash models unavailable' };
               }
@@ -241,15 +287,20 @@ Do not wrap in markdown or backticks. Return valid JSON only.`;
                   required: ['title', 'description'],
                 };
 
-                const fRes = await callDevGemini(formatPrompt, formatSchema, 600);
+                const fRes = await callDevGemini(formatPrompt, formatSchema, 2048);
                 if (!fRes.ok || !fRes.text) {
                   res.statusCode = 502;
                   return res.end(JSON.stringify({ error: fRes.error || 'Failed to format content' }));
                 }
 
-                const clean = fRes.text.replace(/^```json/i, '').replace(/```$/i, '').trim();
-                res.statusCode = 200;
-                return res.end(clean);
+                try {
+                  const parsed = parseAiJson(fRes.text);
+                  res.statusCode = 200;
+                  return res.end(JSON.stringify(parsed));
+                } catch (parseErr: unknown) {
+                  res.statusCode = 502;
+                  return res.end(JSON.stringify({ error: (parseErr as Error).message || 'Failed to parse AI format response' }));
+                }
               }
 
               // ACTION 2: Translate
@@ -303,15 +354,20 @@ Do not wrap in markdown or backticks. Return valid JSON only.`;
                 required: ['kn', 'hi'],
               };
 
-              const tRes = await callDevGemini(prompt, translateSchema, 600);
+              const tRes = await callDevGemini(prompt, translateSchema, 2048);
               if (!tRes.ok || !tRes.text) {
                 res.statusCode = 502;
                 return res.end(JSON.stringify({ error: tRes.error || 'Failed to generate translations' }));
               }
 
-              const cleanJson = tRes.text.replace(/^```json/i, '').replace(/```$/i, '').trim();
-              res.statusCode = 200;
-              return res.end(cleanJson);
+              try {
+                const parsed = parseAiJson(tRes.text);
+                res.statusCode = 200;
+                return res.end(JSON.stringify(parsed));
+              } catch (parseErr: unknown) {
+                res.statusCode = 502;
+                return res.end(JSON.stringify({ error: (parseErr as Error).message || 'Failed to parse AI translation response' }));
+              }
             } catch (err: unknown) {
               res.statusCode = 500;
               return res.end(JSON.stringify({ error: (err as Error).message }));

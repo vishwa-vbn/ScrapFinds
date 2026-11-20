@@ -70,12 +70,11 @@ async function callGeminiDirectClient(
   maxTokens = 2048
 ): Promise<string> {
   const candidates: EndpointCandidate[] = [
-    { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
     { apiVer: 'v1beta', model: 'gemini-3.5-flash' },
-    { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
-    { apiVer: 'v1', model: 'gemini-3.8-flash' },
+    { apiVer: 'v1beta', model: 'gemini-3.1-flash-lite' },
+    { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
     { apiVer: 'v1', model: 'gemini-2.5-flash' },
-    { apiVer: 'v1', model: 'gemini-2.5-flash-lite' },
+    { apiVer: 'v1', model: 'gemini-2.5-pro' },
   ];
 
   if (
@@ -138,11 +137,16 @@ async function callGeminiDirectClient(
         const errText = await resp.text();
         if (
           resp.status === 404 ||
+          resp.status === 429 ||
+          resp.status === 503 ||
           errText.includes('not found') ||
           errText.includes('not supported') ||
-          errText.includes('is not available')
+          errText.includes('is not available') ||
+          errText.includes('Quota exceeded') ||
+          errText.includes('RESOURCE_EXHAUSTED') ||
+          errText.includes('high demand')
         ) {
-          console.warn(`Endpoint ${apiVer}/models/${model} not available, trying next...`);
+          console.warn(`Endpoint ${apiVer}/models/${model} unavailable (${resp.status}), trying next...`);
           lastError = errText;
           continue;
         }
@@ -258,7 +262,7 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
+  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.5-flash';
   const formatSchema = {
     type: 'OBJECT',
     properties: {
@@ -366,7 +370,7 @@ Requirements:
 }
 Do not wrap in markdown or backticks. Return valid JSON only.`;
 
-  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
+  const requestedModel = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.5-flash';
   const translateSchema = {
     type: 'OBJECT',
     properties: {

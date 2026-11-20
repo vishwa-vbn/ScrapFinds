@@ -163,7 +163,7 @@ function devApiPlugin(env: Record<string, string>): Plugin {
           req.on('end', async () => {
             try {
               const { action, rawText, title, description, category, condition } = JSON.parse(body || '{}');
-              const requestedModel = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
+              const requestedModel = env.GEMINI_MODEL || env.VITE_GEMINI_MODEL || 'gemini-3.5-flash';
 
               function parseAiJson(rawText: string): any {
                 if (!rawText) throw new Error('Empty AI response');
@@ -192,10 +192,9 @@ function devApiPlugin(env: Record<string, string>): Plugin {
               async function callDevGemini(promptText: string, schema: any, maxTokens = 2048) {
                 const candidates = [
                   { apiVer: 'v1beta', model: requestedModel },
-                  { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
                   { apiVer: 'v1beta', model: 'gemini-3.5-flash' },
-                  { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
-                  { apiVer: 'v1', model: 'gemini-3.8-flash' },
+                  { apiVer: 'v1beta', model: 'gemini-3.1-flash-lite' },
+                  { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
                   { apiVer: 'v1', model: 'gemini-2.5-flash' },
                 ];
 

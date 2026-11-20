@@ -122,11 +122,11 @@ async function callGeminiApi(
   schema: any,
   maxTokens = 2048
 ): Promise<{ ok: true; text: string } | { ok: false; status: number; error: string }> {
-  // Active models on Google AI (v1beta first for Gemini 3.8/3.5, then v1 fallback)
+  // Active models on Google AI (v1beta first with gemini-3.5-flash leading)
   const candidates: EndpointCandidate[] = [
-    { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
     { apiVer: 'v1beta', model: 'gemini-3.5-flash' },
-    { apiVer: 'v1beta', model: 'gemini-2.5-flash' },
+    { apiVer: 'v1beta', model: 'gemini-3.1-flash-lite' },
+    { apiVer: 'v1beta', model: 'gemini-3.8-flash' },
     { apiVer: 'v1', model: 'gemini-2.5-flash' },
     { apiVer: 'v1', model: 'gemini-2.5-pro' },
   ];
@@ -193,11 +193,16 @@ async function callGeminiApi(
         const errText = await resp.text();
         if (
           resp.status === 404 ||
+          resp.status === 429 ||
+          resp.status === 503 ||
           errText.includes('not found') ||
           errText.includes('not supported') ||
-          errText.includes('is not available')
+          errText.includes('is not available') ||
+          errText.includes('Quota exceeded') ||
+          errText.includes('RESOURCE_EXHAUSTED') ||
+          errText.includes('high demand')
         ) {
-          console.warn(`Endpoint ${apiVer}/models/${model} not available, attempting next...`);
+          console.warn(`Endpoint ${apiVer}/models/${model} unavailable (${resp.status}), attempting next...`);
           lastError = errText;
           continue;
         }
@@ -256,7 +261,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { action, rawText, title, description, category, condition } = body || {};
-  const requestedModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const requestedModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
   // ACTION 1: Clean & Format raw unorganized text into clean English title + spec table
   if (action === 'format' || (rawText && !title && !description)) {
